@@ -1,0 +1,659 @@
+========================================
+       重点讲义一：SQL四大类语言详解
+========================================
+
+创建时间：2026年3月19日
+对应章节：SQL深度详解.md 第二章
+
+========================================
+学习目标
+========================================
+
+理解SQL语言的四大分类，掌握各类语言的核心语法和应用场景。
+
+----------------------------------------
+一、DDL（Data Definition Language）- 数据定义语言
+----------------------------------------
+
+【定义】
+DDL用于定义和修改数据库的结构，包括创建、修改、删除数据库对象。
+
+【核心命令】
+
+1. CREATE - 创建数据库对象
+   用途：创建数据库、表、索引、视图等
+
+   示例1：创建数据库
+   ```sql
+   CREATE DATABASE school_db 
+       DEFAULT CHARACTER SET utf8mb4;
+   ```
+
+   示例2：创建数据表
+   ```sql
+   CREATE TABLE students (
+       id INT PRIMARY KEY AUTO_INCREMENT,
+       name VARCHAR(50) NOT NULL,
+       age INT,
+       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+   );
+   ```
+
+   示例3：创建视图
+   ```sql
+   CREATE VIEW student_view AS
+   SELECT name, age FROM students WHERE age > 18;
+   ```
+
+   示例4：创建索引
+   ```sql
+   CREATE INDEX idx_name ON students(name);
+   ```
+
+2. ALTER - 修改数据库对象
+   用途：修改表结构，如添加列、修改列、删除列
+
+   示例1：添加列
+   ```sql
+   ALTER TABLE students ADD COLUMN email VARCHAR(100);
+   ```
+
+   示例2：修改列的数据类型
+   ```sql
+   ALTER TABLE students MODIFY COLUMN name VARCHAR(100);
+   ```
+
+   示例3：删除列
+   ```sql
+   ALTER TABLE students DROP COLUMN email;
+   ```
+
+   示例4：添加主键
+   ```sql
+   ALTER TABLE students ADD PRIMARY KEY (id);
+   ```
+
+3. DROP - 删除数据库对象
+   用途：删除数据库、表、索引、视图等
+
+   示例1：删除表
+   ```sql
+   DROP TABLE students;
+   ```
+
+   示例2：删除数据库
+   ```sql
+   DROP DATABASE school_db;
+   ```
+
+   示例3：删除索引
+   ```sql
+   DROP INDEX idx_name ON students;
+   ```
+
+4. RENAME - 重命名数据库对象
+   用途：重命名表
+
+   示例：
+   ```sql
+   RENAME TABLE students TO pupils;
+   ```
+
+【DDL 特点】
+✅ 自动提交事务，无法回滚
+✅ 操作的是数据库的"元数据"（结构信息）
+✅ 对表结构的修改可能影响现有数据
+✅ 执行速度相对较快
+
+【注意事项】
+⚠️ 使用DROP命令要极其谨慎，不可逆
+⚠️ 修改表结构前建议备份数据
+⚠️ 在生产环境执行DDL操作需要谨慎评估
+
+
+----------------------------------------
+二、DML（Data Manipulation Language）- 数据操作语言
+----------------------------------------
+
+【定义】
+DML用于对表中的数据进行增删改查操作。
+
+【核心命令】
+
+1. INSERT - 插入数据
+   用途：向表中插入新记录
+
+   语法1：插入完整记录
+   ```sql
+   INSERT INTO students (name, age, gender) 
+   VALUES ('张三', 18, '男');
+   ```
+
+   语法2：批量插入多条记录
+   ```sql
+   INSERT INTO students (name, age, gender) VALUES
+       ('李四', 19, '女'),
+       ('王五', 20, '男'),
+       ('赵六', 18, '女');
+   ```
+
+   语法3：插入部分字段
+   ```sql
+   INSERT INTO students (name) VALUES ('钱七');
+   ```
+
+   语法4：从查询结果插入
+   ```sql
+   INSERT INTO student_backup 
+   SELECT * FROM students WHERE age > 18;
+   ```
+
+2. UPDATE - 更新数据
+   用途：修改表中的现有记录
+
+   语法1：更新单个字段
+   ```sql
+   UPDATE students SET age = 19 WHERE id = 1;
+   ```
+
+   语法2：更新多个字段
+   ```sql
+   UPDATE students 
+   SET age = 20, email = 'new@example.com' 
+   WHERE id = 1;
+   ```
+
+   语法3：批量更新
+   ```sql
+   UPDATE students SET class_id = 1 WHERE age < 18;
+   ```
+
+   语法4：使用子查询更新
+   ```sql
+   UPDATE students SET class_id = (
+       SELECT id FROM classes WHERE name = '一年级一班'
+   ) WHERE name = '张三';
+   ```
+
+   ⚠️ 重要：UPDATE必须带WHERE条件，否则会更新所有记录！
+
+3. DELETE - 删除数据
+   用途：删除表中的记录
+
+   语法1：删除单条记录
+   ```sql
+   DELETE FROM students WHERE id = 1;
+   ```
+
+   语法2：删除多条记录
+   ```sql
+   DELETE FROM students WHERE age < 17;
+   ```
+
+   语法3：使用子查询删除
+   ```sql
+   DELETE FROM students WHERE class_id IN (
+       SELECT id FROM classes WHERE name LIKE '一年级%'
+   );
+   ```
+
+   ⚠️ 重要：DELETE必须带WHERE条件，否则会清空整个表！
+
+4. SELECT - 查询数据
+   用途：从表中检索数据（详见重点讲义三）
+
+【DML 特点】
+✅ 需要手动提交事务（COMMIT）或回滚（ROLLBACK）
+✅ 操作的是表中的实际数据行
+✅ 可以精确控制影响的行数
+✅ 可以撤销未提交的操作
+
+【事务控制】
+```sql
+-- 开启事务
+START TRANSACTION;
+
+-- 执行一系列操作
+INSERT INTO students (name) VALUES ('张三');
+UPDATE students SET age = 19 WHERE name = '张三';
+
+-- 提交事务（永久保存）
+COMMIT;
+
+-- 或回滚事务（撤销所有操作）
+-- ROLLBACK;
+```
+
+
+----------------------------------------
+三、DQL（Data Query Language）- 数据查询语言
+----------------------------------------
+
+【定义】
+DQL是SQL中最重要、最常用的部分，专门用于从数据库中检索数据。
+
+【核心语法结构】
+```sql
+SELECT [DISTINCT] 列名
+FROM 表名
+[WHERE 条件]
+[GROUP BY 分组列]
+[HAVING 分组条件]
+[ORDER BY 排序列 [ASC|DESC]]
+[LIMIT 行数 [OFFSET 偏移量]]
+```
+
+【基础查询】
+```sql
+-- 查询所有列
+SELECT * FROM students;
+
+-- 查询指定列
+SELECT name, age, gender FROM students;
+
+-- 去重查询
+SELECT DISTINCT class_id FROM students;
+```
+
+【条件查询 - WHERE子句】
+```sql
+-- 等于
+SELECT * FROM students WHERE age = 18;
+
+-- 不等于
+SELECT * FROM students WHERE age != 18;
+SELECT * FROM students WHERE age <> 18;
+
+-- 大于、小于
+SELECT * FROM students WHERE age > 18;
+SELECT * FROM students WHERE age < 18;
+
+-- 大于等于、小于等于
+SELECT * FROM students WHERE age >= 18;
+
+-- 多条件 AND（同时满足）
+SELECT * FROM students WHERE age > 18 AND gender = '男';
+
+-- 多条件 OR（满足任一）
+SELECT * FROM students WHERE age > 20 OR gender = '女';
+
+-- 范围查询
+SELECT * FROM students WHERE age BETWEEN 18 AND 20;
+
+-- 列表查询
+SELECT * FROM students WHERE class_id IN (1, 2, 3);
+
+-- 空值判断
+SELECT * FROM students WHERE email IS NULL;
+SELECT * FROM students WHERE email IS NOT NULL;
+```
+
+【模糊查询 - LIKE】
+```sql
+-- 开头匹配
+SELECT * FROM students WHERE name LIKE '张%';
+
+-- 结尾匹配
+SELECT * FROM students WHERE email LIKE '%@example.com';
+
+-- 包含匹配
+SELECT * FROM students WHERE name LIKE '%王%';
+
+-- 单个字符匹配
+SELECT * FROM students WHERE name LIKE '张_';  -- 姓张且名字为两个字
+```
+
+【排序 - ORDER BY】
+```sql
+-- 升序排序（默认）
+SELECT * FROM students ORDER BY age ASC;
+
+-- 降序排序
+SELECT * FROM students ORDER BY age DESC;
+
+-- 多字段排序
+SELECT * FROM students 
+ORDER BY class_id ASC, age DESC;
+```
+
+【分页查询 - LIMIT】
+```sql
+-- 查询前5条
+SELECT * FROM students LIMIT 5;
+
+-- 查询第6-10条（跳过前5条）
+SELECT * FROM students LIMIT 5 OFFSET 5;
+
+-- MySQL简写
+SELECT * FROM students LIMIT 5, 5;
+```
+
+【聚合函数】
+```sql
+-- 计数
+SELECT COUNT(*) AS total FROM students;
+SELECT COUNT(DISTINCT class_id) FROM students;
+
+-- 求和
+SELECT SUM(score) FROM scores WHERE course_id = 1;
+
+-- 平均值
+SELECT AVG(age) AS avg_age FROM students;
+
+-- 最大值
+SELECT MAX(age) AS max_age FROM students;
+
+-- 最小值
+SELECT MIN(age) AS min_age FROM students;
+```
+
+【分组统计 - GROUP BY】
+```sql
+-- 按性别分组统计
+SELECT 
+    gender, 
+    COUNT(*) AS count,
+    AVG(age) AS avg_age
+FROM students
+GROUP BY gender;
+
+-- 按班级分组统计
+SELECT 
+    class_id,
+    COUNT(*) AS student_count,
+    AVG(age) AS avg_age,
+    MAX(age) AS max_age
+FROM students
+GROUP BY class_id;
+
+-- 分组后过滤（HAVING）
+SELECT 
+    class_id,
+    COUNT(*) AS count
+FROM students
+GROUP BY class_id
+HAVING count > 2;
+```
+
+【连接查询 - JOIN】（详见重点讲义四）
+
+【DQL 特点】
+✅ 是SQL中最常用的部分
+✅ 支持复杂的查询逻辑
+✅ 可以从多个表中联合查询
+✅ 支持聚合、分组、排序等高级功能
+
+
+----------------------------------------
+四、DCL（Data Control Language）- 数据控制语言
+----------------------------------------
+
+【定义】
+DCL用于控制数据库的访问权限和安全性。
+
+【核心命令】
+
+1. GRANT - 授予权限
+   用途：给用户或角色授予数据库操作权限
+
+   语法：
+   ```sql
+   GRANT 权限列表 ON 对象 TO 用户;
+   ```
+
+   示例1：授予查询权限
+   ```sql
+   GRANT SELECT ON students TO 'user1'@'localhost';
+   ```
+
+   示例2：授予多个权限
+   ```sql
+   GRANT SELECT, INSERT, UPDATE ON students TO 'user1'@'localhost';
+   ```
+
+   示例3：授予所有权限
+   ```sql
+   GRANT ALL PRIVILEGES ON *.* TO 'admin'@'%';
+   ```
+
+   示例4：创建用户并授权
+   ```sql
+   GRANT ALL PRIVILEGES ON school_db.* TO 'newuser'@'localhost' 
+   IDENTIFIED BY 'password';
+   ```
+
+2. REVOKE - 撤销权限
+   用途：撤销用户或角色的数据库操作权限
+
+   语法：
+   ```sql
+   REVOKE 权限列表 ON 对象 FROM 用户;
+   ```
+
+   示例1：撤销删除权限
+   ```sql
+   REVOKE DELETE ON students FROM 'user1'@'localhost';
+   ```
+
+   示例2：撤销所有权限
+   ```sql
+   REVOKE ALL PRIVILEGES ON *.* FROM 'user1'@'localhost';
+   ```
+
+3. DENY - 拒绝权限（SQL Server专用）
+   用途：明确拒绝用户的某些权限（优先级高于GRANT）
+
+   示例：
+   ```sql
+   DENY UPDATE ON students TO 'user2';
+   ```
+
+【常见权限类型】
+- ALL PRIVILEGES：所有权限
+- SELECT：查询权限
+- INSERT：插入权限
+- UPDATE：更新权限
+- DELETE：删除权限
+- CREATE：创建权限
+- DROP：删除权限
+- ALTER：修改权限
+- INDEX：索引权限
+
+【用户管理】
+```sql
+-- 创建用户（MySQL）
+CREATE USER 'username'@'localhost' IDENTIFIED BY 'password';
+
+-- 删除用户
+DROP USER 'username'@'localhost';
+
+-- 修改密码
+ALTER USER 'username'@'localhost' IDENTIFIED BY 'new_password';
+
+-- 查看用户权限
+SHOW GRANTS FOR 'username'@'localhost';
+```
+
+【DCL 特点】
+✅ 用于数据库安全管理
+✅ 需要管理员权限才能执行
+✅ 权限控制细化到表级别
+✅ 支持基于主机的访问控制
+
+
+----------------------------------------
+五、TCL（Transaction Control Language）- 事务控制语言
+----------------------------------------
+
+【定义】
+TCL用于管理数据库事务，确保数据的一致性和完整性。
+
+【什么是事务】
+事务是一组数据库操作的集合，这些操作要么全部成功执行，要么全部不执行。
+
+【事务的ACID特性】
+
+1. 原子性（Atomicity）
+   事务中的所有操作是一个整体，不可分割。
+
+2. 一致性（Consistency）
+   事务执行前后，数据库始终保持一致的状态。
+
+3. 隔离性（Isolation）
+   并发执行的事务之间互不干扰。
+
+4. 持久性（Durability）
+   一旦事务提交，数据将被永久保存。
+
+【事务控制命令】
+
+1. START TRANSACTION / BEGIN - 开启事务
+   ```sql
+   START TRANSACTION;
+   -- 或
+   BEGIN;
+   ```
+
+2. COMMIT - 提交事务
+   ```sql
+   COMMIT;
+   ```
+   作用：将事务中的所有操作永久保存到数据库
+
+3. ROLLBACK - 回滚事务
+   ```sql
+   ROLLBACK;
+   ```
+   作用：撤销事务中的所有操作，恢复到事务开始前的状态
+
+4. SAVEPOINT - 设置保存点
+   ```sql
+   SAVEPOINT sp1;
+   ```
+
+5. ROLLBACK TO SAVEPOINT - 回滚到保存点
+   ```sql
+   ROLLBACK TO sp1;
+   ```
+
+【事务示例】
+
+示例1：银行转账
+```sql
+-- 开启事务
+START TRANSACTION;
+
+-- 转出账户扣款
+UPDATE accounts SET balance = balance - 1000 WHERE user_id = 1;
+
+-- 转入账户加款
+UPDATE accounts SET balance = balance + 1000 WHERE user_id = 2;
+
+-- 检查余额是否足够
+-- 如果不足，回滚
+-- ROLLBACK;
+
+-- 如果操作成功，提交
+COMMIT;
+```
+
+示例2：使用保存点
+```sql
+START TRANSACTION;
+
+INSERT INTO students (name) VALUES ('张三');
+SAVEPOINT sp1;
+
+INSERT INTO students (name) VALUES ('李四');
+SAVEPOINT sp2;
+
+INSERT INTO students (name) VALUES ('王五');
+
+-- 回滚到第二个保存点
+ROLLBACK TO sp2;
+
+COMMIT;  -- 只提交张三和李四
+```
+
+【自动提交设置】
+```sql
+-- 查看自动提交状态（MySQL）
+SELECT @@autocommit;
+
+-- 关闭自动提交
+SET autocommit = 0;
+
+-- 开启自动提交
+SET autocommit = 1;
+```
+
+【TCL 特点】
+✅ 确保数据一致性
+✅ 支持部分回滚（通过保存点）
+✅ 是数据库并发控制的基础
+✅ 需要正确使用，避免死锁
+
+
+----------------------------------------
+六、SQL语言总结
+----------------------------------------
+
+【对比表】
+
+| 语言类型 | 主要命令 | 操作对象 | 事务特点 | 使用频率 |
+|---------|---------|---------|---------|---------|
+| DDL | CREATE, ALTER, DROP | 数据库结构 | 自动提交 | 低 |
+| DML | INSERT, UPDATE, DELETE | 数据行 | 手动提交 | 高 |
+| DQL | SELECT | 数据 | 无事务 | 最高 |
+| DCL | GRANT, REVOKE | 权限 | 自动提交 | 中 |
+| TCL | COMMIT, ROLLBACK | 事务 | 控制事务 | 中 |
+
+【使用建议】
+1. 日常操作主要使用 DML 和 DQL
+2. DDL操作要谨慎，最好先备份数据
+3. DCL操作需要管理员权限
+4. 涉及多个表的关键操作必须使用事务
+
+----------------------------------------
+七、练习题
+----------------------------------------
+
+【DDL练习】
+1. 创建一个名为"products"的表，包含以下字段：
+   - id（主键，自增）
+   - name（产品名称，不能为空）
+   - price（价格，精确小数）
+   - stock（库存，整数）
+
+2. 为products表的name字段创建索引
+
+【DML练习】
+3. 向products表插入3条数据
+4. 更新id为1的产品价格
+5. 删除库存为0的产品
+
+【DQL练习】
+6. 查询价格大于100的产品
+7. 按价格降序查询产品
+8. 统计各类产品的数量和平均价格
+
+【事务练习】
+9. 使用事务完成以下操作：
+   - 插入一个新产品
+   - 更新库存数量
+   - 如果操作失败则回滚
+
+
+----------------------------------------
+参考案例文件
+----------------------------------------
+
+对应实践文件：
+- SQL脚本：01_创建数据库.sql（DDL示例）
+- SQL脚本：02_创建数据表.sql（DDL示例）
+- SQL脚本：03_数据操作.sql（DML/DQL示例）
+- Python代码：database_demo.py（综合示例）
+
+========================================
+讲义结束
+========================================

@@ -1,0 +1,1042 @@
+========================================
+       重点讲义五：SQL高级特性详解
+========================================
+
+创建时间：2026年3月19日
+对应章节：SQL深度详解.md 第五章
+
+========================================
+学习目标
+========================================
+
+掌握SQL的高级特性，包括索引、视图、存储过程、触发器、事务、窗口函数等，能够使用这些特性优化数据库性能和简化复杂操作。
+
+----------------------------------------
+一、索引（Index）详解
+----------------------------------------
+
+【什么是索引】
+索引是数据库中提高查询效率的数据结构，类似书籍的目录。
+
+【索引的原理】
+- 索引使用B-Tree（或B+Tree）数据结构
+- 索引将数据排序存储
+- 查询时先查索引，再定位数据
+
+【创建索引】
+```sql
+-- 方式1：创建表时定义索引
+CREATE TABLE students (
+    id INT PRIMARY KEY,
+    name VARCHAR(50),
+    INDEX idx_name (name)
+);
+
+-- 方式2：创建表后添加索引
+CREATE INDEX idx_name ON students(name);
+
+-- 方式3：创建唯一索引
+CREATE UNIQUE INDEX idx_email ON users(email);
+
+-- 方式4：创建联合索引
+CREATE INDEX idx_composite ON orders(user_id, order_date);
+
+-- 方式5：创建全文索引
+CREATE FULLTEXT INDEX idx_content ON articles(content);
+```
+
+【查看索引】
+```sql
+-- 查看表的所有索引
+SHOW INDEX FROM students;
+
+-- 查看索引信息
+SELECT 
+    INDEX_NAME,
+    COLUMN_NAME,
+    NON_UNIQUE,
+    SEQ_IN_INDEX
+FROM INFORMATION_SCHEMA.STATISTICS
+WHERE TABLE_NAME = 'students';
+```
+
+【删除索引】
+```sql
+-- 方式1：使用DROP INDEX
+DROP INDEX idx_name ON students;
+
+-- 方式2：使用ALTER TABLE
+ALTER TABLE students DROP INDEX idx_name;
+
+-- 删除主键索引
+ALTER TABLE students DROP PRIMARY KEY;
+```
+
+【索引类型】
+
+1. 主键索引（PRIMARY KEY）
+```sql
+-- 自动创建，唯一标识
+CREATE TABLE students (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(50)
+);
+```
+
+2. 唯一索引（UNIQUE）
+```sql
+-- 确保列值唯一
+CREATE UNIQUE INDEX idx_email ON users(email);
+```
+
+3. 普通索引（INDEX）
+```sql
+-- 提高查询速度，允许重复
+CREATE INDEX idx_name ON students(name);
+```
+
+4. 全文索引（FULLTEXT）
+```sql
+-- 用于文本搜索
+CREATE FULLTEXT INDEX idx_content ON articles(content);
+
+-- 使用全文搜索
+SELECT * FROM articles 
+WHERE MATCH(content) AGAINST('MySQL');
+```
+
+5. 空间索引（SPATIAL）
+```sql
+-- 用于地理数据
+CREATE SPATIAL INDEX idx_location ON locations(coordinates);
+```
+
+6. 联合索引（Composite Index）
+```sql
+-- 多个列组成的索引
+CREATE INDEX idx_composite ON orders(user_id, order_date);
+
+-- 遵循最左前缀原则
+-- 以下查询可以使用索引：
+SELECT * FROM orders WHERE user_id = 1;
+SELECT * FROM orders WHERE user_id = 1 AND order_date = '2026-01-01';
+
+-- 以下查询不能使用索引：
+SELECT * FROM orders WHERE order_date = '2026-01-01';
+```
+
+【索引设计原则】
+
+✅ 适合创建索引的情况：
+- 经常作为查询条件的字段
+- 经常作为连接条件的字段
+- 经常排序的字段
+- 高基数字段（重复值少）
+
+❌ 不适合创建索引的情况：
+- 频繁更新的字段
+- 数据量很小的表
+- 数据重复度很高的字段（如性别）
+- 很少查询的字段
+
+【索引的代价】
+- 占用额外的存储空间
+- 降低写入速度（INSERT/UPDATE/DELETE）
+- 需要维护索引结构
+
+【使用EXPLAIN分析索引】
+```sql
+-- 分析查询是否使用了索引
+EXPLAIN SELECT * FROM students WHERE name = '张三';
+
+-- 关键指标：
+-- type：访问类型（const, ref, range, index, all）
+-- key：使用的索引
+-- rows：扫描的行数
+-- Extra：额外信息（Using index, Using where等）
+
+-- 示例输出：
+-- +----+-------------+----------+------+---------------+----------+---------+-------+------+-------------+
+-- | id | select_type | table    | type | possible_keys | key      | key_len | ref   | rows | Extra       |
+-- +----+-------------+----------+------+---------------+----------+---------+-------+------+-------------+
+-- |  1 | SIMPLE      | students | ref  | idx_name      | idx_name | 202     | const |    1 | Using where |
+-- +----+-------------+----------+------+---------------+----------+---------+-------+------+-------------+
+```
+
+
+----------------------------------------
+二、视图（View）详解
+----------------------------------------
+
+【什么是视图】
+视图是基于SQL查询结果的虚拟表，不存储实际数据，每次查询时动态生成。
+
+【视图的优势】
+✅ 简化复杂查询
+✅ 提供数据安全性（隐藏敏感列）
+✅ 逻辑数据独立性
+✅ 便于权限管理
+
+【创建视图】
+```sql
+-- 基础视图
+CREATE VIEW student_class_view AS
+SELECT 
+    s.id,
+    s.name AS student_name,
+    s.age,
+    s.gender,
+    c.name AS class_name,
+    c.teacher
+FROM students s
+JOIN classes c ON s.class_id = c.id;
+
+-- 带条件过滤的视图
+CREATE VIEW adult_students_view AS
+SELECT * FROM students WHERE age >= 18;
+
+-- 带聚合的视图
+CREATE VIEW class_statistics_view AS
+SELECT 
+    class_id,
+    COUNT(*) AS student_count,
+    AVG(age) AS avg_age,
+    MAX(age) AS max_age,
+    MIN(age) AS min_age
+FROM students
+GROUP BY class_id;
+```
+
+【使用视图】
+```sql
+-- 查询视图（像查询表一样）
+SELECT * FROM student_class_view WHERE age > 18;
+
+-- 视图可以和其他表连接
+SELECT * FROM student_class_view s
+JOIN scores sc ON s.id = sc.student_id;
+```
+
+【更新视图】
+```sql
+-- 简单视图可以更新（有限制）
+UPDATE student_class_view SET age = 20 WHERE id = 1;
+
+-- 插入数据
+INSERT INTO adult_students_view (name, age) VALUES ('张三', 18);
+
+-- 注意：复杂视图（包含聚合、GROUP BY、DISTINCT等）不能更新
+```
+
+【修改视图】
+```sql
+-- 方式1：使用CREATE OR REPLACE
+CREATE OR REPLACE VIEW student_class_view AS
+SELECT 
+    s.id,
+    s.name AS student_name,
+    s.age,
+    s.gender,
+    c.name AS class_name
+FROM students s
+JOIN classes c ON s.class_id = c.id;
+
+-- 方式2：使用ALTER VIEW
+ALTER VIEW student_class_view AS
+SELECT id, name, age FROM students;
+```
+
+【删除视图】
+```sql
+DROP VIEW student_class_view;
+```
+
+【视图的限制】
+- 不能包含ORDER BY子句（除非有LIMIT）
+- 不能包含子查询（某些数据库）
+- 不能使用临时表
+- 复杂视图（包含聚合、DISTINCT、GROUP BY等）不能更新
+
+【视图应用场景】
+```sql
+-- 场景1：隐藏敏感信息
+CREATE VIEW user_public_view AS
+SELECT 
+    id,
+    username,
+    created_at
+FROM users;
+-- 不显示password等敏感字段
+
+-- 场景2：简化复杂查询
+CREATE VIEW sales_report_view AS
+SELECT 
+    p.name AS product_name,
+    c.name AS category_name,
+    SUM(o.quantity) AS total_quantity,
+    SUM(o.quantity * o.price) AS total_amount
+FROM orders o
+JOIN products p ON o.product_id = p.id
+JOIN categories c ON p.category_id = c.id
+GROUP BY p.id, p.name, c.id, c.name;
+
+-- 场景3：数据汇总
+CREATE VIEW monthly_sales_view AS
+SELECT 
+    YEAR(order_date) AS year,
+    MONTH(order_date) AS month,
+    COUNT(*) AS order_count,
+    SUM(total_amount) AS total_sales
+FROM orders
+GROUP BY YEAR(order_date), MONTH(order_date);
+```
+
+
+----------------------------------------
+三、存储过程（Stored Procedure）详解
+----------------------------------------
+
+【什么是存储过程】
+存储过程是预编译的SQL语句集合，存储在数据库中，可以重复调用。
+
+【存储过程的优势】
+✅ 提高性能（预编译）
+✅ 减少网络流量
+✅ 增强安全性（权限控制）
+✅ 代码复用
+✅ 业务逻辑集中管理
+
+【创建存储过程】
+```sql
+-- 基础存储过程
+DELIMITER //
+CREATE PROCEDURE GetStudentByClass(IN classId INT)
+BEGIN
+    SELECT * FROM students WHERE class_id = classId;
+END //
+DELIMITER ;
+
+-- 调用存储过程
+CALL GetStudentByClass(1);
+```
+
+【存储过程参数】
+```sql
+-- IN参数（输入参数）
+DELIMITER //
+CREATE PROCEDURE GetStudentsByAge(IN minAge INT)
+BEGIN
+    SELECT * FROM students WHERE age >= minAge;
+END //
+DELIMITER ;
+
+-- OUT参数（输出参数）
+DELIMITER //
+CREATE PROCEDURE GetStudentCount(OUT count INT)
+BEGIN
+    SELECT COUNT(*) INTO count FROM students;
+END //
+DELIMITER ;
+
+-- 调用
+CALL GetStudentCount(@total);
+SELECT @total;
+
+-- INOUT参数（输入输出参数）
+DELIMITER //
+CREATE PROCEDURE IncrementValue(INOUT num INT)
+BEGIN
+    SET num = num + 1;
+END //
+DELIMITER ;
+
+-- 调用
+SET @value = 10;
+CALL IncrementValue(@value);
+SELECT @value;  -- 11
+```
+
+【存储过程变量】
+```sql
+DELIMITER //
+CREATE PROCEDURE CalculateStatistics()
+BEGIN
+    -- 声明变量
+    DECLARE total_count INT;
+    DECLARE avg_age DECIMAL(10,2);
+    
+    -- 赋值
+    SELECT COUNT(*) INTO total_count FROM students;
+    SELECT AVG(age) INTO avg_age FROM students;
+    
+    -- 使用变量
+    SELECT total_count, avg_age;
+END //
+DELIMITER ;
+```
+
+【存储过程流程控制】
+```sql
+DELIMITER //
+CREATE PROCEDURE CheckStudentAge(IN student_id INT)
+BEGIN
+    DECLARE student_age INT;
+    
+    -- 获取学生年龄
+    SELECT age INTO student_age FROM students WHERE id = student_id;
+    
+    -- IF语句
+    IF student_age IS NULL THEN
+        SELECT '学生不存在' AS result;
+    ELSEIF student_age < 18 THEN
+        SELECT '未成年' AS result;
+    ELSE
+        SELECT '成年' AS result;
+    END IF;
+END //
+DELIMITER ;
+
+-- CASE语句
+DELIMITER //
+CREATE PROCEDURE GetAgeGroup(IN age INT)
+BEGIN
+    DECLARE age_group VARCHAR(20);
+    
+    CASE 
+        WHEN age < 18 THEN SET age_group = '未成年';
+        WHEN age < 30 THEN SET age_group = '青年';
+        WHEN age < 50 THEN SET age_group = '中年';
+        ELSE SET age_group = '老年';
+    END CASE;
+    
+    SELECT age_group;
+END //
+DELIMITER ;
+
+-- 循环语句
+DELIMITER //
+CREATE PROCEDURE GenerateNumbers()
+BEGIN
+    DECLARE i INT DEFAULT 1;
+    
+    WHILE i <= 10 DO
+        SELECT i;
+        SET i = i + 1;
+    END WHILE;
+END //
+DELIMITER ;
+```
+
+【存储过程游标】
+```sql
+DELIMITER //
+CREATE PROCEDURE ProcessStudents()
+BEGIN
+    DECLARE done INT DEFAULT FALSE;
+    DECLARE student_id INT;
+    DECLARE student_name VARCHAR(50);
+    
+    -- 声明游标
+    DECLARE cur CURSOR FOR 
+        SELECT id, name FROM students;
+    
+    -- 声明处理程序
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+    
+    -- 打开游标
+    OPEN cur;
+    
+    -- 循环读取
+    read_loop: LOOP
+        FETCH cur INTO student_id, student_name;
+        
+        IF done THEN
+            LEAVE read_loop;
+        END IF;
+        
+        -- 处理每条记录
+        SELECT student_id, student_name;
+    END LOOP;
+    
+    -- 关闭游标
+    CLOSE cur;
+END //
+DELIMITER ;
+```
+
+【管理存储过程】
+```sql
+-- 查看存储过程
+SHOW PROCEDURE STATUS;
+
+-- 查看存储过程定义
+SHOW CREATE PROCEDURE GetStudentByClass;
+
+-- 删除存储过程
+DROP PROCEDURE IF EXISTS GetStudentByClass;
+```
+
+
+----------------------------------------
+四、触发器（Trigger）详解
+----------------------------------------
+
+【什么是触发器】
+触发器是在特定事件（INSERT、UPDATE、DELETE）发生时自动执行的SQL语句。
+
+【触发器的应用场景】
+✅ 数据审计（记录数据变更）
+✅ 数据同步
+✅ 业务规则约束
+✅ 自动计算
+
+【创建触发器】
+```sql
+-- 创建审计表
+CREATE TABLE audit_log (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    table_name VARCHAR(50),
+    action VARCHAR(10),
+    record_id INT,
+    old_data TEXT,
+    new_data TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- INSERT触发器
+DELIMITER //
+CREATE TRIGGER trg_student_insert
+AFTER INSERT ON students
+FOR EACH ROW
+BEGIN
+    INSERT INTO audit_log (table_name, action, record_id, new_data)
+    VALUES ('students', 'INSERT', NEW.id, 
+            CONCAT('name=', NEW.name, ',age=', NEW.age));
+END //
+DELIMITER ;
+
+-- UPDATE触发器
+DELIMITER //
+CREATE TRIGGER trg_student_update
+AFTER UPDATE ON students
+FOR EACH ROW
+BEGIN
+    INSERT INTO audit_log (table_name, action, record_id, old_data, new_data)
+    VALUES ('students', 'UPDATE', NEW.id, 
+            CONCAT('name=', OLD.name, ',age=', OLD.age),
+            CONCAT('name=', NEW.name, ',age=', NEW.age));
+END //
+DELIMITER ;
+
+-- DELETE触发器
+DELIMITER //
+CREATE TRIGGER trg_student_delete
+BEFORE DELETE ON students
+FOR EACH ROW
+BEGIN
+    INSERT INTO audit_log (table_name, action, record_id, old_data)
+    VALUES ('students', 'DELETE', OLD.id,
+            CONCAT('name=', OLD.name, ',age=', OLD.age));
+END //
+DELIMITER ;
+```
+
+【触发器类型】
+
+1. 触发时机
+- BEFORE：在操作之前执行
+- AFTER：在操作之后执行
+
+2. 触发事件
+- INSERT：插入操作
+- UPDATE：更新操作
+- DELETE：删除操作
+
+3. 执行级别
+- FOR EACH ROW：每行触发一次
+
+【触发器中的关键字】
+```sql
+-- NEW：引用新插入或更新的值
+INSERT INTO audit_log (new_data) 
+VALUES (CONCAT('name=', NEW.name));
+
+-- OLD：引用更新或删除前的值
+INSERT INTO audit_log (old_data) 
+VALUES (CONCAT('name=', OLD.name));
+```
+
+【触发器示例】
+```sql
+-- 示例1：自动计算班级人数
+DELIMITER //
+CREATE TRIGGER trg_update_class_count
+AFTER INSERT ON students
+FOR EACH ROW
+BEGIN
+    UPDATE classes 
+    SET student_count = (
+        SELECT COUNT(*) FROM students WHERE class_id = NEW.class_id
+    )
+    WHERE id = NEW.class_id;
+END //
+DELIMITER ;
+
+-- 示例2：数据验证
+DELIMITER //
+CREATE TRIGGER trg_check_age
+BEFORE INSERT ON students
+FOR EACH ROW
+BEGIN
+    IF NEW.age < 0 OR NEW.age > 150 THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = '年龄必须在0-150之间';
+    END IF;
+END //
+DELIMITER ;
+
+-- 示例3：自动填充字段
+DELIMITER //
+CREATE TRIGGER trg_auto_fill_updated_at
+BEFORE UPDATE ON students
+FOR EACH ROW
+BEGIN
+    SET NEW.updated_at = NOW();
+END //
+DELIMITER ;
+```
+
+【管理触发器】
+```sql
+-- 查看触发器
+SHOW TRIGGERS;
+
+-- 查看触发器定义
+SHOW CREATE TRIGGER trg_student_insert;
+
+-- 删除触发器
+DROP TRIGGER IF EXISTS trg_student_insert;
+```
+
+
+----------------------------------------
+五、事务（Transaction）详解
+----------------------------------------
+
+【事务的基本概念】
+事务是一组数据库操作的集合，这些操作要么全部成功，要么全部失败。
+
+【事务的ACID特性】
+
+1. 原子性（Atomicity）
+```sql
+START TRANSACTION;
+UPDATE accounts SET balance = balance - 100 WHERE id = 1;
+UPDATE accounts SET balance = balance + 100 WHERE id = 2;
+COMMIT;
+-- 要么两步都成功，要么都失败
+```
+
+2. 一致性（Consistency）
+```sql
+-- 事务执行前后，数据库始终保持一致的状态
+-- 例如：转账前后总金额不变
+```
+
+3. 隔离性（Isolation）
+```sql
+-- 并发事务之间互不干扰
+-- 使用隔离级别控制
+```
+
+4. 持久性（Durability）
+```sql
+-- 一旦提交，数据永久保存
+-- 即使系统崩溃也不会丢失
+```
+
+【事务控制语句】
+```sql
+-- 开启事务
+START TRANSACTION;
+-- 或
+BEGIN;
+
+-- 提交事务
+COMMIT;
+
+-- 回滚事务
+ROLLBACK;
+
+-- 设置保存点
+SAVEPOINT sp1;
+
+-- 回滚到保存点
+ROLLBACK TO sp1;
+
+-- 释放保存点
+RELEASE SAVEPOINT sp1;
+```
+
+【事务隔离级别】
+
+```sql
+-- 查看当前隔离级别
+SELECT @@transaction_isolation;
+
+-- 设置隔离级别
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;  -- MySQL默认
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+```
+
+| 隔离级别 | 脏读 | 不可重复读 | 幻读 | 性能 |
+|---------|------|-----------|------|------|
+| READ UNCOMMITTED | ✅ | ✅ | ✅ | 最高 |
+| READ COMMITTED | ❌ | ✅ | ✅ | 高 |
+| REPEATABLE READ | ❌ | ❌ | ✅ | 中 |
+| SERIALIZABLE | ❌ | ❌ | ❌ | 最低 |
+
+【事务示例】
+```sql
+-- 示例1：银行转账
+START TRANSACTION;
+-- 1. 检查余额
+SELECT balance FROM accounts WHERE id = 1 FOR UPDATE;
+
+-- 2. 扣款
+UPDATE accounts SET balance = balance - 100 WHERE id = 1;
+
+-- 3. 加款
+UPDATE accounts SET balance = balance + 100 WHERE id = 2;
+
+-- 4. 提交
+COMMIT;
+
+-- 示例2：使用保存点
+START TRANSACTION;
+
+INSERT INTO students (name) VALUES ('张三');
+SAVEPOINT sp1;
+
+INSERT INTO students (name) VALUES ('李四');
+SAVEPOINT sp2;
+
+INSERT INTO students (name) VALUES ('王五');
+
+-- 回滚到第二个保存点
+ROLLBACK TO sp2;
+
+COMMIT;  -- 只提交张三和李四
+```
+
+
+----------------------------------------
+六、窗口函数（Window Functions）
+----------------------------------------
+
+【什么是窗口函数】
+窗口函数在结果集的窗口（子集）上执行计算，不将行分组到单个输出行。
+
+【窗口函数语法】
+```sql
+function_name() OVER (
+    [PARTITION BY 分组列]
+    [ORDER BY 排序列]
+    [窗口子句]
+)
+```
+
+【排名函数】
+
+1. ROW_NUMBER
+```sql
+-- 为每行生成唯一的行号
+SELECT 
+    name,
+    score,
+    ROW_NUMBER() OVER (ORDER BY score DESC) AS rank
+FROM scores;
+```
+
+2. RANK
+```sql
+-- 排名，相同值排名相同，跳过后续排名
+SELECT 
+    name,
+    score,
+    RANK() OVER (ORDER BY score DESC) AS rank
+FROM scores;
+-- 结果：1, 2, 2, 4（第三名跳过）
+```
+
+3. DENSE_RANK
+```sql
+-- 排名，相同值排名相同，不跳过后续排名
+SELECT 
+    name,
+    score,
+    DENSE_RANK() OVER (ORDER BY score DESC) AS rank
+FROM scores;
+-- 结果：1, 2, 2, 3（第三名不跳过）
+```
+
+【聚合窗口函数】
+```sql
+-- SUM累计和
+SELECT 
+    name,
+    score,
+    SUM(score) OVER (ORDER BY score) AS running_total
+FROM scores;
+
+-- AVG移动平均
+SELECT 
+    name,
+    score,
+    AVG(score) OVER (
+        ORDER BY score
+        ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
+    ) AS moving_avg
+FROM scores;
+
+-- COUNT累计计数
+SELECT 
+    name,
+    COUNT(*) OVER (ORDER BY id) AS cumulative_count
+FROM students;
+```
+
+【偏移函数】
+```sql
+-- LAG获取前一行的值
+SELECT 
+    name,
+    score,
+    LAG(score, 1, 0) OVER (ORDER BY score) AS prev_score
+FROM scores;
+
+-- LEAD获取后一行的值
+SELECT 
+    name,
+    score,
+    LEAD(score, 1, 0) OVER (ORDER BY score) AS next_score
+FROM scores;
+
+-- FIRST_VALUE获取第一个值
+SELECT 
+    name,
+    score,
+    FIRST_VALUE(score) OVER (
+        ORDER BY score 
+        ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+    ) AS first_score
+FROM scores;
+```
+
+【窗口子句】
+```sql
+-- ROWS BETWEEN ... AND ...
+-- 定义窗口的行范围
+
+-- 当前行之前的2行到当前行
+ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
+
+-- 当前行到后1行
+ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING
+
+-- 所有行
+ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+
+-- 分组的第一行到最后一行
+ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+```
+
+【窗口函数应用场景】
+```sql
+-- 场景1：查询每门课程的前3名学生
+SELECT * FROM (
+    SELECT 
+        s.name AS student_name,
+        c.name AS course_name,
+        sc.score,
+        ROW_NUMBER() OVER (
+            PARTITION BY c.id 
+            ORDER BY sc.score DESC
+        ) AS rank
+    FROM scores sc
+    JOIN students s ON sc.student_id = s.id
+    JOIN courses c ON sc.course_id = c.id
+) AS ranked
+WHERE rank <= 3
+ORDER BY course_name, rank;
+
+-- 场景2：计算累计销售额
+SELECT 
+    order_date,
+    amount,
+    SUM(amount) OVER (
+        ORDER BY order_date
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS cumulative_sales
+FROM orders;
+
+-- 场景3：同比环比
+SELECT 
+    year,
+    month,
+    sales,
+    LAG(sales, 12) OVER (ORDER BY year, month) AS yoy_sales,
+    sales / LAG(sales, 12) OVER (ORDER BY year, month) - 1 AS yoy_growth
+FROM monthly_sales;
+```
+
+
+----------------------------------------
+七、CTE（公用表表达式）
+----------------------------------------
+
+【什么是CTE】
+CTE（Common Table Expression）是一个临时的命名结果集，在单个语句的执行范围内存在。
+
+【CTE语法】
+```sql
+WITH cte_name AS (
+    -- CTE查询
+    SELECT * FROM table WHERE condition
+)
+-- 主查询
+SELECT * FROM cte_name;
+```
+
+【CTE示例】
+
+```sql
+-- 基础CTE
+WITH adult_students AS (
+    SELECT * FROM students WHERE age >= 18
+)
+SELECT * FROM adult_students WHERE gender = '男';
+
+-- 多个CTE
+WITH 
+    adult_students AS (
+        SELECT * FROM students WHERE age >= 18
+    ),
+    adult_classes AS (
+        SELECT DISTINCT class_id 
+        FROM adult_students
+    )
+SELECT * FROM classes 
+WHERE id IN (SELECT class_id FROM adult_classes);
+
+-- 递归CTE（查询组织结构）
+WITH RECURSIVE org_tree AS (
+    -- 基础查询
+    SELECT id, name, parent_id, 1 AS level
+    FROM departments
+    WHERE parent_id IS NULL
+    
+    UNION ALL
+    
+    -- 递归查询
+    SELECT d.id, d.name, d.parent_id, ot.level + 1
+    FROM departments d
+    JOIN org_tree ot ON d.parent_id = ot.id
+)
+SELECT * FROM org_tree ORDER BY level, id;
+```
+
+【CTE应用场景】
+```sql
+-- 场景1：简化复杂查询
+WITH 
+    class_stats AS (
+        SELECT 
+            class_id,
+            COUNT(*) AS student_count,
+            AVG(age) AS avg_age
+        FROM students
+        GROUP BY class_id
+    ),
+    large_classes AS (
+        SELECT * FROM class_stats WHERE student_count > 5
+    )
+SELECT 
+    c.name AS class_name,
+    lc.student_count,
+    lc.avg_age
+FROM classes c
+JOIN large_classes lc ON c.id = lc.class_id;
+
+-- 场景2：数据分页
+WITH paginated AS (
+    SELECT *, ROW_NUMBER() OVER (ORDER BY id) AS row_num
+    FROM students
+)
+SELECT * FROM paginated
+WHERE row_num BETWEEN 11 AND 20;
+
+-- 场景3：计算累计值
+WITH sales_data AS (
+    SELECT 
+        order_date,
+        SUM(amount) AS daily_sales
+    FROM orders
+    GROUP BY order_date
+)
+SELECT 
+    order_date,
+    daily_sales,
+    SUM(daily_sales) OVER (ORDER BY order_date) AS cumulative_sales
+FROM sales_data;
+```
+
+
+----------------------------------------
+八、练习题
+----------------------------------------
+
+【索引练习】
+1. 为students表的name和age字段创建联合索引
+2. 使用EXPLAIN分析查询是否使用了索引
+3. 创建全文索引并测试全文搜索
+
+【视图练习】
+4. 创建一个视图，显示学生及其班级信息
+5. 创建一个视图，显示每个班级的统计信息
+6. 尝试更新视图
+
+【存储过程练习】
+7. 创建一个存储过程，根据年龄查询学生
+8. 创建一个存储过程，统计每个班级的学生人数
+9. 创建一个存储过程，使用游标处理所有学生
+
+【触发器练习】
+10. 创建一个INSERT触发器，记录学生插入日志
+11. 创建一个UPDATE触发器，记录学生变更日志
+12. 创建一个DELETE触发器，记录学生删除日志
+
+【事务练习】
+13. 使用事务实现银行转账功能
+14. 使用保存点实现部分回滚
+15. 测试不同隔离级别
+
+【窗口函数练习】
+16. 使用ROW_NUMBER查询每门课程的前3名学生
+17. 使用SUM计算累计销售额
+18. 使用LAG计算环比增长率
+
+
+----------------------------------------
+参考案例文件
+----------------------------------------
+
+对应实践文件：
+- 文档：SQL深度详解.md（高级特性详解）
+- SQL脚本：02_创建数据表.sql（索引示例）
+
+========================================
+讲义结束
+========================================

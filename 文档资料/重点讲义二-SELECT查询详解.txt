@@ -1,0 +1,923 @@
+========================================
+       重点讲义二：SELECT查询详解
+========================================
+
+创建时间：2026年3月19日
+对应章节：SQL深度详解.md 第二章、大纲第三章
+
+========================================
+学习目标
+========================================
+
+深入掌握SELECT查询的各种用法，包括基础查询、条件查询、排序、分页、聚合、分组等核心技能。
+
+----------------------------------------
+一、SELECT语法结构
+----------------------------------------
+
+【完整语法】
+```sql
+SELECT [DISTINCT] 列名或表达式
+FROM 表名或连接
+[WHERE 条件]
+[GROUP BY 分组列]
+[HAVING 分组条件]
+[ORDER BY 排序列 [ASC|DESC]]
+[LIMIT 行数 [OFFSET 偏移量]]
+```
+
+【执行顺序】
+```sql
+FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY → LIMIT
+```
+重要：虽然SQL的书写顺序如上，但实际执行顺序不同！
+
+
+----------------------------------------
+二、基础查询
+----------------------------------------
+
+【1. 查询所有列】
+```sql
+SELECT * FROM students;
+```
+
+优点：简单快捷
+缺点：性能较差，可能查询不需要的数据
+建议：仅在开发调试时使用
+
+【2. 查询指定列】
+```sql
+SELECT id, name, age FROM students;
+```
+
+优点：性能更好，只查询需要的数据
+建议：生产环境推荐使用
+
+【3. 列别名】
+```sql
+SELECT 
+    name AS student_name, 
+    age AS student_age,
+    2026 - age AS birth_year
+FROM students;
+```
+
+【4. 去重查询】
+```sql
+SELECT DISTINCT class_id FROM students;
+SELECT DISTINCT gender, class_id FROM students;
+```
+
+【5. 常量查询】
+```sql
+SELECT 'Hello MySQL' AS message;
+SELECT NOW() AS current_time;
+SELECT 100 * 2 AS result;
+
+
+----------------------------------------
+三、条件查询 - WHERE子句
+----------------------------------------
+
+【比较运算符】
+```sql
+-- 等于
+SELECT * FROM students WHERE age = 18;
+
+-- 不等于（两种写法）
+SELECT * FROM students WHERE age != 18;
+SELECT * FROM students WHERE age <> 18;
+
+-- 大于
+SELECT * FROM students WHERE age > 18;
+
+-- 小于
+SELECT * FROM students WHERE age < 18;
+
+-- 大于等于
+SELECT * FROM students WHERE age >= 18;
+
+-- 小于等于
+SELECT * FROM students WHERE age <= 18;
+```
+
+【逻辑运算符】
+```sql
+-- AND：同时满足所有条件
+SELECT * FROM students 
+WHERE age > 18 AND gender = '男';
+
+-- OR：满足任一条件
+SELECT * FROM students 
+WHERE age > 20 OR gender = '女';
+
+-- NOT：否定条件
+SELECT * FROM students 
+WHERE NOT (gender = '男');
+
+-- 组合使用（注意运算符优先级）
+SELECT * FROM students 
+WHERE (age > 20 AND gender = '女') 
+   OR (age < 18 AND class_id = 1);
+```
+
+【范围查询】
+```sql
+-- BETWEEN：在范围内（包含边界）
+SELECT * FROM students 
+WHERE age BETWEEN 18 AND 20;
+
+-- 等价于
+SELECT * FROM students 
+WHERE age >= 18 AND age <= 20;
+
+-- NOT BETWEEN：不在范围内
+SELECT * FROM students 
+WHERE age NOT BETWEEN 18 AND 20;
+```
+
+【列表查询】
+```sql
+-- IN：在列表中
+SELECT * FROM students 
+WHERE class_id IN (1, 2, 3);
+
+-- 等价于
+SELECT * FROM students 
+WHERE class_id = 1 OR class_id = 2 OR class_id = 3;
+
+-- NOT IN：不在列表中
+SELECT * FROM students 
+WHERE class_id NOT IN (4, 5);
+```
+
+【空值查询】
+```sql
+-- IS NULL：为空
+SELECT * FROM students 
+WHERE email IS NULL;
+
+-- IS NOT NULL：不为空
+SELECT * FROM students 
+WHERE email IS NOT NULL;
+
+⚠️ 注意：不能使用 = 或 != 判断NULL
+-- 错误写法
+SELECT * FROM students WHERE email = NULL;
+```
+
+【模糊查询 - LIKE】
+```sql
+-- %：匹配任意多个字符（包括0个）
+SELECT * FROM students WHERE name LIKE '张%';
+-- 查询姓张的所有学生
+
+SELECT * FROM students WHERE email LIKE '%@example.com';
+-- 查询所有example.com邮箱
+
+SELECT * FROM students WHERE name LIKE '%王%';
+-- 查询名字中包含"王"的学生
+
+-- _：匹配单个字符
+SELECT * FROM students WHERE name LIKE '张_';
+-- 查询姓张且名字为两个字的学生
+
+SELECT * FROM students WHERE phone LIKE '138______';
+-- 查询138开头的11位手机号
+
+-- 转义字符（\）
+SELECT * FROM students WHERE name LIKE '%\_%';
+-- 查询包含下划线的学生名
+```
+
+【正则表达式匹配】（MySQL）
+```sql
+-- REGEXP：正则匹配
+SELECT * FROM students WHERE name REGEXP '^张';
+-- 查询姓张的学生
+
+SELECT * FROM students WHERE phone REGEXP '^1[3-9][0-9]{9}$';
+-- 查询有效的手机号
+
+-- NOT REGEXP：不匹配
+SELECT * FROM students WHERE name NOT REGEXP '[0-9]';
+```
+
+
+----------------------------------------
+四、排序 - ORDER BY子句
+----------------------------------------
+
+【单字段排序】
+```sql
+-- 升序（ASC，默认）
+SELECT * FROM students ORDER BY age ASC;
+-- 或简写为
+SELECT * FROM students ORDER BY age;
+
+-- 降序（DESC）
+SELECT * FROM students ORDER BY age DESC;
+```
+
+【多字段排序】
+```sql
+-- 先按班级升序，同班级按年龄降序
+SELECT * FROM students 
+ORDER BY class_id ASC, age DESC;
+
+-- 执行顺序：
+-- 1. 先按class_id分组
+-- 2. 在每个class_id内部，按age降序
+```
+
+【按表达式排序】
+```sql
+-- 按计算结果排序
+SELECT name, age, 2026 - age AS birth_year
+FROM students 
+ORDER BY 2026 - age;
+
+-- 按列别名排序
+SELECT name, age, 2026 - age AS birth_year
+FROM students 
+ORDER BY birth_year;
+```
+
+【按位置排序】
+```sql
+-- 按SELECT列表中的位置（不推荐，可读性差）
+SELECT id, name, age FROM students 
+ORDER BY 2, 3 DESC;
+-- 先按第2列（name）升序，再按第3列（age）降序
+```
+
+【NULL值排序】
+```sql
+-- NULL值在排序中默认最小
+SELECT * FROM students ORDER BY age;
+
+-- 将NULL值放在最后（MySQL）
+SELECT * FROM students ORDER BY age IS NULL, age;
+```
+
+
+----------------------------------------
+五、分页查询 - LIMIT子句
+----------------------------------------
+
+【基础分页】
+```sql
+-- 查询前5条
+SELECT * FROM students LIMIT 5;
+
+-- 或完整写法
+SELECT * FROM students LIMIT 5 OFFSET 0;
+```
+
+【分页公式】
+```sql
+-- 第n页，每页m条
+SELECT * FROM students 
+LIMIT m OFFSET (n-1)*m;
+
+-- 示例：第2页，每页10条
+SELECT * FROM students 
+LIMIT 10 OFFSET 10;
+
+-- MySQL简写
+SELECT * FROM students 
+LIMIT 10, 10;
+```
+
+【分页应用场景】
+```python
+# Python分页示例
+page = 2
+page_size = 10
+offset = (page - 1) * page_size
+
+sql = f"""
+    SELECT * FROM students 
+    LIMIT {page_size} OFFSET {offset}
+"""
+```
+
+【带排序的分页】
+```sql
+-- 先排序再分页（重要！）
+SELECT * FROM students 
+WHERE age > 18
+ORDER BY age DESC
+LIMIT 5;
+```
+
+
+----------------------------------------
+六、聚合函数
+----------------------------------------
+
+【COUNT - 计数】
+```sql
+-- 统计总记录数
+SELECT COUNT(*) FROM students;
+
+-- 统计非NULL值的记录数
+SELECT COUNT(email) FROM students;
+
+-- 去重统计
+SELECT COUNT(DISTINCT class_id) FROM students;
+
+-- 结合条件统计
+SELECT COUNT(*) FROM students WHERE age > 18;
+```
+
+【SUM - 求和】
+```sql
+-- 求和
+SELECT SUM(score) FROM scores;
+
+-- 条件求和
+SELECT SUM(score) FROM scores WHERE course_id = 1;
+
+-- 多列求和
+SELECT SUM(score * 0.8) FROM scores;
+```
+
+【AVG - 平均值】
+```sql
+-- 计算平均年龄
+SELECT AVG(age) FROM students;
+
+-- 条件平均值
+SELECT AVG(score) FROM scores WHERE course_id = 1;
+
+-- 保留小数位数
+SELECT ROUND(AVG(age), 2) FROM students;
+```
+
+【MAX - 最大值】
+```sql
+-- 最大年龄
+SELECT MAX(age) FROM students;
+
+-- 最高分
+SELECT MAX(score) FROM scores WHERE course_id = 1;
+
+-- 结合GROUP BY
+SELECT class_id, MAX(age) FROM students GROUP BY class_id;
+```
+
+【MIN - 最小值】
+```sql
+-- 最小年龄
+SELECT MIN(age) FROM students;
+
+-- 最低分
+SELECT MIN(score) FROM scores WHERE course_id = 1;
+```
+
+【GROUP_CONCAT - 字符串拼接】（MySQL）
+```sql
+-- 拼接同班学生姓名
+SELECT class_id, GROUP_CONCAT(name) 
+FROM students 
+GROUP BY class_id;
+
+-- 自定义分隔符
+SELECT class_id, GROUP_CONCAT(name SEPARATOR ' | ') 
+FROM students 
+GROUP BY class_id;
+
+-- 排序后拼接
+SELECT class_id, GROUP_CONCAT(name ORDER BY age DESC) 
+FROM students 
+GROUP BY class_id;
+```
+
+
+----------------------------------------
+七、分组统计 - GROUP BY
+----------------------------------------
+
+【基本分组】
+```sql
+-- 按性别分组统计
+SELECT 
+    gender,
+    COUNT(*) AS count
+FROM students
+GROUP BY gender;
+```
+
+【多字段分组】
+```sql
+-- 按班级和性别分组
+SELECT 
+    class_id,
+    gender,
+    COUNT(*) AS count,
+    AVG(age) AS avg_age
+FROM students
+GROUP BY class_id, gender;
+```
+
+【分组聚合】
+```sql
+-- 统计每个班级的人数、平均年龄、最大年龄、最小年龄
+SELECT 
+    class_id,
+    COUNT(*) AS student_count,
+    AVG(age) AS avg_age,
+    MAX(age) AS max_age,
+    MIN(age) AS min_age
+FROM students
+GROUP BY class_id;
+```
+
+【分组过滤 - HAVING】
+```sql
+-- HAVING与WHERE的区别：
+-- WHERE：在分组前过滤行
+-- HAVING：在分组后过滤组
+
+-- 示例1：查询人数大于5的班级
+SELECT 
+    class_id,
+    COUNT(*) AS count
+FROM students
+GROUP BY class_id
+HAVING COUNT(*) > 5;
+
+-- 示例2：查询平均年龄大于18的班级
+SELECT 
+    class_id,
+    AVG(age) AS avg_age
+FROM students
+GROUP BY class_id
+HAVING AVG(age) > 18;
+
+-- 示例3：WHERE和HAVING结合使用
+SELECT 
+    class_id,
+    COUNT(*) AS count
+FROM students
+WHERE age > 15
+GROUP BY class_id
+HAVING COUNT(*) > 3;
+```
+
+【分组排序】
+```sql
+-- 按班级人数降序
+SELECT 
+    class_id,
+    COUNT(*) AS count
+FROM students
+GROUP BY class_id
+ORDER BY count DESC;
+```
+
+【WITH ROLLUP - 生成总计行】
+```sql
+-- 在每个分组后添加汇总行（MySQL）
+SELECT 
+    class_id,
+    gender,
+    COUNT(*) AS count
+FROM students
+GROUP BY class_id, gender WITH ROLLUP;
+```
+
+
+----------------------------------------
+八、连接查询 - JOIN
+----------------------------------------
+
+【表关系】
+```sql
+-- 本案例的表关系：
+classes (班级表)
+    ↓ 1对多
+students (学生表)
+    ↓ 1对多
+scores (成绩表)
+    ↑ 多对1
+courses (课程表)
+```
+
+【INNER JOIN - 内连接】
+```sql
+-- 只返回两表中匹配的行
+SELECT 
+    s.id AS student_id,
+    s.name AS student_name,
+    c.name AS class_name,
+    c.teacher
+FROM students s
+INNER JOIN classes c ON s.class_id = c.id;
+
+-- 等价写法
+SELECT 
+    s.id AS student_id,
+    s.name AS student_name,
+    c.name AS class_name
+FROM students s
+JOIN classes c ON s.class_id = c.id;
+
+-- 带条件的内连接
+SELECT 
+    s.name,
+    c.name AS class_name
+FROM students s
+INNER JOIN classes c ON s.class_id = c.id
+WHERE s.age > 18;
+```
+
+【LEFT JOIN - 左连接】
+```sql
+-- 返回左表所有行，右表匹配的行，不匹配则为NULL
+SELECT 
+    s.name AS student_name,
+    c.name AS class_name
+FROM students s
+LEFT JOIN classes c ON s.class_id = c.id;
+
+-- 适用场景：查询所有学生，包括未分配班级的学生
+```
+
+【RIGHT JOIN - 右连接】
+```sql
+-- 返回右表所有行，左表匹配的行，不匹配则为NULL
+SELECT 
+    s.name AS student_name,
+    c.name AS class_name
+FROM students s
+RIGHT JOIN classes c ON s.class_id = c.id;
+
+-- 适用场景：查询所有班级，包括没有学生的班级
+```
+
+【FULL JOIN - 全连接】（MySQL不支持）
+```sql
+-- 返回两表所有行，不匹配则为NULL
+-- MySQL中使用UNION模拟
+SELECT s.*, c.* 
+FROM students s
+LEFT JOIN classes c ON s.class_id = c.id
+UNION
+SELECT s.*, c.* 
+FROM students s
+RIGHT JOIN classes c ON s.class_id = c.id;
+```
+
+【多表连接】
+```sql
+-- 三表连接：查询学生成绩详情
+SELECT 
+    s.name AS student_name,
+    c.name AS class_name,
+    co.name AS course_name,
+    sc.score,
+    sc.exam_date
+FROM scores sc
+JOIN students s ON sc.student_id = s.id
+JOIN classes c ON s.class_id = c.id
+JOIN courses co ON sc.course_id = co.id
+ORDER BY s.name, sc.score DESC;
+```
+
+【自连接】
+```sql
+-- 同一张表的连接
+-- 示例：查询学生和其班主任（如果班主任也是学生）
+SELECT 
+    s1.name AS student_name,
+    s2.name AS teacher_name
+FROM students s1
+JOIN students s2 ON s1.teacher_id = s2.id;
+```
+
+【连接条件类型】
+```sql
+-- 等值连接
+FROM students s JOIN classes c ON s.class_id = c.id;
+
+-- 非等值连接
+FROM students s JOIN scores sc ON s.id = sc.student_id
+WHERE sc.score >= 80;
+
+-- 复杂连接条件
+FROM students s 
+JOIN classes c ON s.class_id = c.id AND c.teacher = '王老师';
+```
+
+
+----------------------------------------
+九、子查询
+----------------------------------------
+
+【WHERE子句中的子查询】
+```sql
+-- 标量子查询（返回单值）
+SELECT * FROM students 
+WHERE age > (SELECT AVG(age) FROM students);
+
+-- 列表子查询（返回多值）
+SELECT * FROM students 
+WHERE class_id IN (SELECT id FROM classes WHERE teacher LIKE '%王%');
+
+-- EXISTS子查询
+SELECT * FROM classes c
+WHERE EXISTS (
+    SELECT 1 FROM students s 
+    WHERE s.class_id = c.id AND s.age > 18
+);
+```
+
+【FROM子句中的子查询】
+```sql
+-- 将子查询结果作为临时表
+SELECT class_name, student_count
+FROM (
+    SELECT 
+        c.name AS class_name,
+        COUNT(*) AS student_count
+    FROM students s
+    JOIN classes c ON s.class_id = c.id
+    GROUP BY c.id, c.name
+) AS temp
+WHERE student_count > 2;
+```
+
+【SELECT子句中的子查询】
+```sql
+-- 每行都执行一次（性能较差，谨慎使用）
+SELECT 
+    name,
+    (SELECT COUNT(*) FROM scores WHERE student_id = s.id) AS score_count
+FROM students s;
+```
+
+【相关子查询】
+```sql
+-- 子查询引用外部查询的列
+SELECT * FROM students s1
+WHERE age > (
+    SELECT AVG(age) 
+    FROM students s2 
+    WHERE s2.class_id = s1.class_id
+);
+-- 查询年龄大于所在班级平均年龄的学生
+```
+
+
+----------------------------------------
+十、UNION - 合并查询结果
+----------------------------------------
+
+【UNION - 合并并去重】
+```sql
+-- 合并两个查询的结果（自动去重）
+SELECT name, age FROM students WHERE age > 18
+UNION
+SELECT name, age FROM students WHERE gender = '女';
+```
+
+【UNION ALL - 合并不去重】
+```sql
+-- 合并两个查询的结果（保留重复）
+SELECT name, age FROM students WHERE age > 18
+UNION ALL
+SELECT name, age FROM students WHERE gender = '女';
+```
+
+【使用规则】
+- UNION的子查询必须有相同数量的列
+- 列的数据类型必须兼容
+- 列名由第一个查询决定
+- 默认按第一列排序
+
+
+----------------------------------------
+十一、窗口函数（MySQL 8.0+）
+----------------------------------------
+
+【ROW_NUMBER - 行号】
+```sql
+-- 为每行生成唯一的行号
+SELECT 
+    name,
+    age,
+    ROW_NUMBER() OVER (ORDER BY age DESC) AS rank
+FROM students;
+```
+
+【RANK - 排名】
+```sql
+-- 排名，相同值排名相同，跳过后续排名
+SELECT 
+    name,
+    score,
+    RANK() OVER (ORDER BY score DESC) AS rank
+FROM scores;
+```
+
+【DENSE_RANK - 密集排名】
+```sql
+-- 排名，相同值排名相同，不跳过后续排名
+SELECT 
+    name,
+    score,
+    DENSE_RANK() OVER (ORDER BY score DESC) AS rank
+FROM scores;
+```
+
+【聚合窗口函数】
+```sql
+-- 计算累计和
+SELECT 
+    name,
+    score,
+    SUM(score) OVER (ORDER BY score) AS running_total
+FROM scores;
+
+-- 计算移动平均
+SELECT 
+    name,
+    score,
+    AVG(score) OVER (
+        ORDER BY score
+        ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
+    ) AS moving_avg
+FROM scores;
+```
+
+
+----------------------------------------
+十二、性能优化建议
+----------------------------------------
+
+【1. 只查询需要的列】
+```sql
+-- ❌ 不推荐
+SELECT * FROM students;
+
+-- ✅ 推荐
+SELECT id, name, age FROM students;
+```
+
+【2. 使用索引列作为查询条件】
+```sql
+-- 如果age列有索引
+SELECT * FROM students WHERE age = 18;
+```
+
+【3. 避免在索引列上使用函数】
+```sql
+-- ❌ 无法使用索引
+SELECT * FROM students WHERE YEAR(birth_date) = 2000;
+
+-- ✅ 可以使用索引
+SELECT * FROM students 
+WHERE birth_date BETWEEN '2000-01-01' AND '2000-12-31';
+```
+
+【4. 使用EXPLAIN分析查询】
+```sql
+EXPLAIN SELECT * FROM students WHERE age > 18;
+-- 查看执行计划，分析索引使用情况
+```
+
+【5. 限制返回的数据量】
+```sql
+-- 使用LIMIT限制返回的行数
+SELECT * FROM students LIMIT 100;
+```
+
+【6. 避免SELECT *】
+```sql
+-- 列出具体需要的列
+SELECT id, name FROM students;
+```
+
+【7. 优化JOIN顺序】
+```sql
+-- 将小表放在前面
+SELECT * FROM small_table 
+JOIN big_table ON small_table.id = big_table.small_id;
+```
+
+
+----------------------------------------
+十三、实战案例
+----------------------------------------
+
+【案例1：查询成绩优秀的学生】
+```sql
+SELECT 
+    s.name,
+    c.name AS course_name,
+    sc.score
+FROM scores sc
+JOIN students s ON sc.student_id = s.id
+JOIN courses c ON sc.course_id = c.id
+WHERE sc.score >= 90
+ORDER BY sc.score DESC;
+```
+
+【案例2：统计每个班级的性别分布】
+```sql
+SELECT 
+    cl.name AS class_name,
+    s.gender,
+    COUNT(*) AS count,
+    ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (PARTITION BY cl.id), 2) AS percentage
+FROM students s
+JOIN classes cl ON s.class_id = cl.id
+GROUP BY cl.id, cl.name, s.gender
+ORDER BY cl.id, s.gender;
+```
+
+【案例3：查询每门课程的平均分和最高分】
+```sql
+SELECT 
+    c.name AS course_name,
+    COUNT(sc.id) AS student_count,
+    ROUND(AVG(sc.score), 2) AS avg_score,
+    MAX(sc.score) AS max_score,
+    MIN(sc.score) AS min_score
+FROM courses c
+LEFT JOIN scores sc ON c.id = sc.course_id
+GROUP BY c.id, c.name
+ORDER BY avg_score DESC;
+```
+
+【案例4：查询每门课程的前3名学生】
+```sql
+SELECT * FROM (
+    SELECT 
+        s.name AS student_name,
+        c.name AS course_name,
+        sc.score,
+        ROW_NUMBER() OVER (
+            PARTITION BY c.id 
+            ORDER BY sc.score DESC
+        ) AS rank
+    FROM scores sc
+    JOIN students s ON sc.student_id = s.id
+    JOIN courses c ON sc.course_id = c.id
+) AS ranked
+WHERE rank <= 3
+ORDER BY course_name, rank;
+```
+
+【案例5：查询没有成绩的学生】
+```sql
+SELECT 
+    s.name,
+    c.name AS class_name
+FROM students s
+JOIN classes c ON s.class_id = c.id
+LEFT JOIN scores sc ON s.id = sc.student_id
+WHERE sc.id IS NULL;
+```
+
+
+----------------------------------------
+十四、练习题
+----------------------------------------
+
+【基础练习】
+1. 查询所有18岁以上的男生
+2. 查询所有姓王的学生
+3. 按年龄降序查询学生，只显示前10名
+4. 统计每个班级的学生人数
+5. 查询平均年龄大于18的班级
+
+【进阶练习】
+6. 查询每个学生及其班级信息
+7. 查询每个学生及其成绩详情（三表连接）
+8. 查询成绩超过90分的学生姓名和课程名称
+9. 统计每门课程的平均分、最高分、最低分
+10. 查询年龄大于所在班级平均年龄的学生
+
+【高级练习】
+11. 使用窗口函数查询每门课程的前3名学生
+12. 查询每个班级的性别分布比例
+13. 查询没有成绩的学生
+14. 查询每门课程成绩最高的学生
+15. 统计每个月的学生注册数量
+
+
+----------------------------------------
+参考案例文件
+----------------------------------------
+
+对应实践文件：
+- SQL脚本：03_数据操作.sql（查询示例）
+- Python代码：database_demo.py（查询方法实现）
+
+========================================
+讲义结束
+========================================

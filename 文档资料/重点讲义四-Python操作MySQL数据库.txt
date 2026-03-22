@@ -1,0 +1,937 @@
+========================================
+       重点讲义四：Python操作MySQL数据库
+========================================
+
+创建时间：2026年3月19日
+对应章节：Python代码：database_demo.py
+
+========================================
+学习目标
+========================================
+
+掌握使用Python连接MySQL数据库的方法，学会使用pymysql进行数据库操作，理解参数化查询、事务管理、异常处理等重要概念。
+
+----------------------------------------
+一、准备工作
+----------------------------------------
+
+【1. 安装MySQL】
+- 下载MySQL Community Server：https://dev.mysql.com/downloads/
+- 安装时设置root密码
+- 启动MySQL服务
+
+【2. 安装pymysql库】
+```bash
+# 使用pip安装
+pip install pymysql
+
+# 或使用清华镜像加速
+pip install pymysql -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+【3. 验证安装】
+```bash
+python -c "import pymysql; print(pymysql.__version__)"
+```
+
+【4. 连接MySQL】
+```bash
+# 命令行连接
+mysql -u root -p
+```
+
+----------------------------------------
+二、pymysql基础
+----------------------------------------
+
+【导入pymysql】
+```python
+import pymysql
+```
+
+【数据库连接配置】
+```python
+DB_CONFIG = {
+    'host': 'localhost',          # 主机地址
+    'port': 3306,                 # 端口号
+    'user': 'root',               # 用户名
+    'password': 'your_password',  # 密码
+    'database': 'school_db',      # 数据库名
+    'charset': 'utf8mb4'           # 字符集
+}
+```
+
+【建立连接】
+```python
+# 创建连接对象
+connection = pymysql.connect(**DB_CONFIG)
+
+# 创建游标对象
+cursor = connection.cursor()
+
+# 或使用字典游标（返回字典格式）
+cursor = connection.cursor(pymysql.cursors.DictCursor)
+```
+
+【关闭连接】
+```python
+# 关闭游标
+cursor.close()
+
+# 关闭连接
+connection.close()
+```
+
+【最佳实践：使用with语句】
+```python
+# 自动关闭连接
+with pymysql.connect(**DB_CONFIG) as connection:
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT * FROM students")
+        results = cursor.fetchall()
+# 连接和游标自动关闭
+```
+
+
+----------------------------------------
+三、数据库操作类设计
+----------------------------------------
+
+【完整的DatabaseManager类】
+```python
+import pymysql
+from datetime import datetime
+
+class DatabaseManager:
+    """数据库管理类"""
+    
+    def __init__(self):
+        self.connection = None
+        self.cursor = None
+    
+    def connect(self):
+        """建立数据库连接"""
+        try:
+            self.connection = pymysql.connect(**DB_CONFIG)
+            self.cursor = self.connection.cursor(
+                pymysql.cursors.DictCursor
+            )
+            print("✓ 数据库连接成功")
+            return True
+        except Exception as e:
+            print(f"✗ 数据库连接失败: {e}")
+            return False
+    
+    def close(self):
+        """关闭数据库连接"""
+        if self.cursor:
+            self.cursor.close()
+        if self.connection:
+            self.connection.close()
+            print("✓ 数据库连接已关闭")
+```
+
+【使用示例】
+```python
+db = DatabaseManager()
+db.connect()
+# 执行数据库操作...
+db.close()
+```
+
+
+----------------------------------------
+四、DDL操作 - 创建表
+----------------------------------------
+
+【创建表的方法】
+```python
+def create_tables(self):
+    """创建示例数据表"""
+    
+    # 创建班级表
+    sql_classes = """
+    CREATE TABLE IF NOT EXISTS classes (
+        id INT PRIMARY KEY AUTO_INCREMENT COMMENT '班级ID',
+        name VARCHAR(50) NOT NULL COMMENT '班级名称',
+        teacher VARCHAR(50) COMMENT '班主任',
+        room VARCHAR(30) COMMENT '教室',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """
+    
+    # 创建学生表
+    sql_students = """
+    CREATE TABLE IF NOT EXISTS students (
+        id INT PRIMARY KEY AUTO_INCREMENT COMMENT '学生ID',
+        name VARCHAR(50) NOT NULL COMMENT '姓名',
+        age INT COMMENT '年龄',
+        gender VARCHAR(10) COMMENT '性别',
+        class_id INT COMMENT '班级ID',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (class_id) REFERENCES classes(id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """
+    
+    try:
+        self.cursor.execute(sql_classes)
+        self.cursor.execute(sql_students)
+        self.connection.commit()
+        print("✓ 数据表创建成功")
+    except Exception as e:
+        print(f"✗ 创建表失败: {e}")
+        self.connection.rollback()
+```
+
+【调用示例】
+```python
+db = DatabaseManager()
+db.connect()
+db.create_tables()
+db.close()
+```
+
+
+----------------------------------------
+五、INSERT操作 - 插入数据
+----------------------------------------
+
+【基础插入】
+```python
+def insert_student(self, name, age, gender, class_id):
+    """插入学生数据"""
+    sql = """
+    INSERT INTO students (name, age, gender, class_id) 
+    VALUES (%s, %s, %s, %s)
+    """
+    try:
+        self.cursor.execute(sql, (name, age, gender, class_id))
+        self.connection.commit()
+        print(f"✓ 学生 {name} 添加成功，ID: {self.cursor.lastrowid}")
+        return self.cursor.lastrowid
+    except Exception as e:
+        self.connection.rollback()
+        print(f"✗ 添加学生失败: {e}")
+        return None
+```
+
+【批量插入】
+```python
+def insert_students_batch(self, students_list):
+    """批量插入学生数据"""
+    sql = """
+    INSERT INTO students (name, age, gender, class_id) 
+    VALUES (%s, %s, %s, %s)
+    """
+    try:
+        # 使用executemany批量插入
+        self.cursor.executemany(sql, students_list)
+        self.connection.commit()
+        print(f"✓ 批量插入成功，共 {len(students_list)} 条记录")
+        return self.cursor.rowcount
+    except Exception as e:
+        self.connection.rollback()
+        print(f"✗ 批量插入失败: {e}")
+        return 0
+```
+
+【使用示例】
+```python
+# 单条插入
+db.insert_student("张三", 18, "男", 1)
+
+# 批量插入
+students = [
+    ("李四", 19, "女", 1),
+    ("王五", 20, "男", 2),
+    ("赵六", 18, "女", 2)
+]
+db.insert_students_batch(students)
+```
+
+
+----------------------------------------
+六、SELECT操作 - 查询数据
+----------------------------------------
+
+【查询所有数据】
+```python
+def query_all_students(self):
+    """查询所有学生"""
+    sql = """
+    SELECT id, name, age, gender 
+    FROM students
+    ORDER BY id
+    """
+    try:
+        self.cursor.execute(sql)
+        results = self.cursor.fetchall()
+        
+        print(f"\n=== 学生列表 (共 {len(results)} 人) ===")
+        for row in results:
+            print(f"ID: {row['id']}, 姓名: {row['name']}, "
+                  f"年龄: {row['age']}, 性别: {row['gender']}")
+        
+        return results
+    except Exception as e:
+        print(f"✗ 查询失败: {e}")
+        return []
+```
+
+【条件查询】
+```python
+def query_by_age(self, min_age):
+    """按年龄条件查询"""
+    sql = "SELECT * FROM students WHERE age > %s ORDER BY age DESC"
+    try:
+        self.cursor.execute(sql, (min_age,))
+        results = self.cursor.fetchall()
+        
+        print(f"\n=== 年龄大于 {min_age} 岁的学生 ===")
+        for row in results:
+            print(f"  {row['name']}: {row['age']}岁")
+        
+        return results
+    except Exception as e:
+        print(f"✗ 查询失败: {e}")
+        return []
+```
+
+【查询单条记录】
+```python
+def query_by_id(self, student_id):
+    """按ID查询单个学生"""
+    sql = "SELECT * FROM students WHERE id = %s"
+    try:
+        self.cursor.execute(sql, (student_id,))
+        result = self.cursor.fetchone()
+        
+        if result:
+            print(f"找到学生: {result['name']}")
+            return result
+        else:
+            print("未找到该学生")
+            return None
+    except Exception as e:
+        print(f"✗ 查询失败: {e}")
+        return None
+```
+
+【多表连接查询】
+```python
+def query_students_with_class(self):
+    """查询学生及其班级信息"""
+    sql = """
+    SELECT 
+        s.id,
+        s.name AS student_name,
+        s.age,
+        s.gender,
+        c.name AS class_name,
+        c.teacher
+    FROM students s
+    LEFT JOIN classes c ON s.class_id = c.id
+    ORDER BY s.id
+    """
+    try:
+        self.cursor.execute(sql)
+        results = self.cursor.fetchall()
+        
+        print("\n=== 学生及班级信息 ===")
+        for row in results:
+            class_name = row['class_name'] or '未分配'
+            print(f"{row['student_name']}: {class_name}")
+        
+        return results
+    except Exception as e:
+        print(f"✗ 查询失败: {e}")
+        return []
+```
+
+【使用示例】
+```python
+# 查询所有学生
+db.query_all_students()
+
+# 按年龄查询
+db.query_by_age(18)
+
+# 按ID查询
+db.query_by_id(1)
+
+# 多表查询
+db.query_students_with_class()
+```
+
+
+----------------------------------------
+七、UPDATE操作 - 更新数据
+----------------------------------------
+
+【更新单个字段】
+```python
+def update_student(self, student_id, **kwargs):
+    """更新学生信息"""
+    if not kwargs:
+        print("没有要更新的字段")
+        return False
+    
+    # 构建SET子句
+    set_clause = ", ".join([f"{k} = %s" for k in kwargs.keys()])
+    sql = f"UPDATE students SET {set_clause} WHERE id = %s"
+    values = list(kwargs.values()) + [student_id]
+    
+    try:
+        self.cursor.execute(sql, values)
+        self.connection.commit()
+        print(f"✓ 学生ID {student_id} 更新成功")
+        return True
+    except Exception as e:
+        self.connection.rollback()
+        print(f"✗ 更新失败: {e}")
+        return False
+```
+
+【使用示例】
+```python
+# 更新年龄
+db.update_student(1, age=19)
+
+# 更新多个字段
+db.update_student(1, age=20, email='new@example.com')
+
+# 更新班级
+db.update_student(1, class_id=2)
+```
+
+
+----------------------------------------
+八、DELETE操作 - 删除数据
+----------------------------------------
+
+【删除单条记录】
+```python
+def delete_student(self, student_id):
+    """删除学生"""
+    sql = "DELETE FROM students WHERE id = %s"
+    try:
+        self.cursor.execute(sql, (student_id,))
+        self.connection.commit()
+        print(f"✓ 学生ID {student_id} 已删除")
+        return True
+    except Exception as e:
+        self.connection.rollback()
+        print(f"✗ 删除失败: {e}")
+        return False
+```
+
+【批量删除】
+```python
+def delete_students_by_age(self, min_age):
+    """批量删除指定年龄的学生"""
+    sql = "DELETE FROM students WHERE age < %s"
+    try:
+        self.cursor.execute(sql, (min_age,))
+        affected_rows = self.cursor.rowcount
+        self.connection.commit()
+        print(f"✓ 删除了 {affected_rows} 条记录")
+        return affected_rows
+    except Exception as e:
+        self.connection.rollback()
+        print(f"✗ 删除失败: {e}")
+        return 0
+```
+
+【使用示例】
+```python
+# 删除单个学生
+db.delete_student(1)
+
+# 批量删除
+db.delete_students_by_age(17)
+```
+
+
+----------------------------------------
+九、参数化查询 - SQL注入防护
+----------------------------------------
+
+【什么是SQL注入】
+SQL注入是一种安全漏洞，攻击者通过恶意构造的输入，修改SQL语句的逻辑。
+
+【危险示例】
+```python
+# ❌ 危险：字符串拼接
+username = "admin' OR '1'='1"
+sql = f"SELECT * FROM users WHERE username = '{username}'"
+# 实际执行的SQL：
+# SELECT * FROM users WHERE username = 'admin' OR '1'='1'
+# 结果：返回所有用户！
+```
+
+【安全示例】
+```python
+# ✅ 安全：参数化查询
+username = "admin' OR '1'='1"
+sql = "SELECT * FROM users WHERE username = %s"
+cursor.execute(sql, (username,))
+# 参数会被正确转义，不会影响SQL结构
+```
+
+【参数化查询的优势】
+1. 防止SQL注入
+2. 自动处理数据类型转换
+3. 提高代码可读性
+4. 支持复杂类型（日期、二进制等）
+
+【使用占位符】
+```python
+# pymysql使用 %s 作为占位符
+sql = "SELECT * FROM students WHERE age > %s AND gender = %s"
+cursor.execute(sql, (18, '男'))
+
+# IN查询
+sql = "SELECT * FROM students WHERE id IN (%s, %s, %s)"
+cursor.execute(sql, (1, 2, 3))
+
+# LIKE查询
+sql = "SELECT * FROM students WHERE name LIKE %s"
+cursor.execute(sql, ('张%',))
+```
+
+
+----------------------------------------
+十、事务管理
+----------------------------------------
+
+【什么是事务】
+事务是一组数据库操作的集合，这些操作要么全部成功，要么全部失败。
+
+【事务的特性（ACID）】
+- 原子性（Atomicity）：不可分割
+- 一致性（Consistency）：数据一致
+- 隔离性（Isolation）：互不干扰
+- 持久性（Durability）：永久保存
+
+【事务操作示例】
+```python
+def transfer_money(self, from_user, to_user, amount):
+    """转账操作 - 使用事务"""
+    try:
+        # 开启事务
+        self.connection.begin()
+        
+        # 1. 检查转出账户余额
+        sql = "SELECT balance FROM accounts WHERE id = %s FOR UPDATE"
+        self.cursor.execute(sql, (from_user,))
+        balance = self.cursor.fetchone()['balance']
+        
+        if balance < amount:
+            raise Exception("余额不足")
+        
+        # 2. 扣除转出账户余额
+        sql = "UPDATE accounts SET balance = balance - %s WHERE id = %s"
+        self.cursor.execute(sql, (amount, from_user))
+        
+        # 3. 增加转入账户余额
+        sql = "UPDATE accounts SET balance = balance + %s WHERE id = %s"
+        self.cursor.execute(sql, (amount, to_user))
+        
+        # 提交事务
+        self.connection.commit()
+        print("✓ 转账成功")
+        return True
+        
+    except Exception as e:
+        # 回滚事务
+        self.connection.rollback()
+        print(f"✗ 转账失败: {e}")
+        return False
+```
+
+【自动提交模式】
+```python
+# 查看自动提交状态
+autocommit = connection.get_autocommit()
+
+# 关闭自动提交
+connection.autocommit(False)
+
+# 开启自动提交（默认）
+connection.autocommit(True)
+```
+
+
+----------------------------------------
+十一、异常处理
+----------------------------------------
+
+【常见的数据库异常】
+```python
+import pymysql
+from pymysql import Error
+
+try:
+    # 数据库操作
+    cursor.execute("SELECT * FROM students")
+    
+except pymysql.MySQLError as e:
+    print(f"MySQL错误: {e}")
+    
+except Exception as e:
+    print(f"其他错误: {e}")
+    
+finally:
+    # 确保关闭连接
+    if cursor:
+        cursor.close()
+    if connection:
+        connection.close()
+```
+
+【错误码处理】
+```python
+try:
+    cursor.execute("INSERT INTO students (name) VALUES (%s)", ("张三",))
+    
+except pymysql.IntegrityError as e:
+    # 违反唯一约束或外键约束
+    print(f"完整性错误: {e}")
+    
+except pymysql.OperationalError as e:
+    # 操作错误（连接失败、数据库不存在等）
+    print(f"操作错误: {e}")
+    
+except pymysql.DataError as e:
+    # 数据错误（数据超出范围、类型错误等）
+    print(f"数据错误: {e}")
+    
+except pymysql.InterfaceError as e:
+    # 接口错误（连接已关闭等）
+    print(f"接口错误: {e}")
+```
+
+
+----------------------------------------
+十二、游标类型
+----------------------------------------
+
+【普通游标】
+```python
+# 返回元组格式
+cursor = connection.cursor()
+cursor.execute("SELECT id, name FROM students")
+result = cursor.fetchone()
+# result: (1, '张三')
+```
+
+【字典游标】
+```python
+# 返回字典格式（推荐）
+cursor = connection.cursor(pymysql.cursors.DictCursor)
+cursor.execute("SELECT id, name FROM students")
+result = cursor.fetchone()
+# result: {'id': 1, 'name': '张三'}
+```
+
+【SSDict游标】
+```python
+# 返回有序字典（支持插入顺序）
+cursor = connection.cursor(pymysql.cursors.SSDictCursor)
+```
+
+【获取结果的方法】
+```python
+cursor.execute("SELECT * FROM students")
+
+# 获取所有结果
+results = cursor.fetchall()
+
+# 获取单条结果
+result = cursor.fetchone()
+
+# 获取指定数量的结果
+results = cursor.fetchmany(5)
+
+# 滚动游标
+cursor.scroll(0, 'absolute')  # 移动到第一行
+cursor.scroll(1, 'relative')  # 向下移动1行
+```
+
+
+----------------------------------------
+十三、连接池
+----------------------------------------
+
+【为什么使用连接池】
+- 避免频繁创建和销毁连接
+- 提高性能
+- 限制连接数量，防止资源耗尽
+
+【使用DBUtils连接池】
+```python
+from dbutils.pooled_db import PooledDB
+
+# 创建连接池
+db_pool = PooledDB(
+    creator=pymysql,  # 使用pymysql
+    maxconnections=10,  # 最大连接数
+    mincached=2,  # 最小缓存连接数
+    maxcached=5,  # 最大缓存连接数
+    host='localhost',
+    port=3306,
+    user='root',
+    password='your_password',
+    database='school_db',
+    charset='utf8mb4'
+)
+
+# 从连接池获取连接
+connection = db_pool.connection()
+cursor = connection.cursor()
+
+# 执行操作...
+cursor.execute("SELECT * FROM students")
+results = cursor.fetchall()
+
+# 归还连接到连接池（而不是关闭）
+connection.close()
+```
+
+
+----------------------------------------
+十四、数据格式化输出
+----------------------------------------
+
+【格式化表格输出】
+```python
+def print_table(data):
+    """格式化输出表格"""
+    if not data:
+        print("无数据")
+        return
+    
+    # 获取列名
+    columns = list(data[0].keys())
+    
+    # 计算每列宽度
+    widths = {col: len(col) for col in columns}
+    for row in data:
+        for col in columns:
+            width = len(str(row[col]))
+            if width > widths[col]:
+                widths[col] = width
+    
+    # 打印表头
+    header = " | ".join(col.ljust(widths[col]) for col in columns)
+    separator = "-+-".join("-" * widths[col] for col in columns)
+    print(header)
+    print(separator)
+    
+    # 打印数据
+    for row in data:
+        line = " | ".join(str(row[col]).ljust(widths[col]) for col in columns)
+        print(line)
+
+# 使用示例
+results = db.query_all_students()
+print_table(results)
+```
+
+【输出示例】
+```
+id | name | age | gender
+---+-----+-----+-------
+1  | 张三 | 18  | 男
+2  | 李四 | 19  | 女
+3  | 王五 | 20  | 男
+```
+
+
+----------------------------------------
+十五、实战案例
+----------------------------------------
+
+【案例1：用户注册】
+```python
+def register_user(self, username, password, email):
+    """用户注册"""
+    try:
+        # 检查用户名是否已存在
+        sql = "SELECT id FROM users WHERE username = %s"
+        self.cursor.execute(sql, (username,))
+        if self.cursor.fetchone():
+            return False, "用户名已存在"
+        
+        # 插入新用户
+        sql = """
+        INSERT INTO users (username, password, email, created_at)
+        VALUES (%s, %s, %s, %s)
+        """
+        self.cursor.execute(sql, (username, password, email, datetime.now()))
+        self.connection.commit()
+        
+        return True, "注册成功"
+    except Exception as e:
+        self.connection.rollback()
+        return False, f"注册失败: {e}"
+```
+
+【案例2：分页查询】
+```python
+def get_students_page(self, page=1, page_size=10):
+    """分页查询学生"""
+    offset = (page - 1) * page_size
+    sql = """
+    SELECT * FROM students
+    ORDER BY id
+    LIMIT %s OFFSET %s
+    """
+    try:
+        self.cursor.execute(sql, (page_size, offset))
+        results = self.cursor.fetchall()
+        return results
+    except Exception as e:
+        print(f"查询失败: {e}")
+        return []
+```
+
+【案例3：统计报表】
+```python
+def get_statistics(self):
+    """统计信息"""
+    sql = """
+    SELECT 
+        c.name as class_name,
+        COUNT(s.id) as student_count,
+        AVG(s.age) as avg_age,
+        MAX(s.age) as max_age,
+        MIN(s.age) as min_age
+    FROM classes c
+    LEFT JOIN students s ON c.id = s.class_id
+    GROUP BY c.id, c.name
+    """
+    try:
+        self.cursor.execute(sql)
+        results = self.cursor.fetchall()
+        
+        print("\n=== 班级统计信息 ===")
+        for row in results:
+            avg = round(row['avg_age'], 1) if row['avg_age'] else 0
+            print(f"{row['class_name']}: 人数={row['student_count']}, "
+                  f"平均年龄={avg}")
+        
+        return results
+    except Exception as e:
+        print(f"统计失败: {e}")
+        return []
+```
+
+
+----------------------------------------
+十六、最佳实践
+----------------------------------------
+
+【1. 使用上下文管理器】
+```python
+# 自动关闭连接
+with pymysql.connect(**DB_CONFIG) as conn:
+    with conn.cursor() as cursor:
+        cursor.execute("SELECT * FROM students")
+        results = cursor.fetchall()
+```
+
+【2. 始终使用参数化查询】
+```python
+# ✅ 正确
+sql = "SELECT * FROM users WHERE id = %s"
+cursor.execute(sql, (user_id,))
+
+# ❌ 错误
+sql = f"SELECT * FROM users WHERE id = {user_id}"
+cursor.execute(sql)
+```
+
+【3. 正确处理异常】
+```python
+try:
+    # 数据库操作
+    cursor.execute(sql)
+    connection.commit()
+except Exception as e:
+    connection.rollback()
+    print(f"错误: {e}")
+finally:
+    connection.close()
+```
+
+【4. 使用连接池】
+```python
+# 避免频繁创建连接
+pool = PooledDB(creator=pymysql, maxconnections=10)
+```
+
+【5. 批量操作使用executemany】
+```python
+# ✅ 高效
+cursor.executemany(sql, data_list)
+
+# ❌ 低效
+for item in data_list:
+    cursor.execute(sql, item)
+```
+
+【6. 及时关闭连接】
+```python
+# 使用finally确保关闭
+finally:
+    if cursor:
+        cursor.close()
+    if connection:
+        connection.close()
+```
+
+【7. 使用字典游标】
+```python
+# 更易读
+cursor = connection.cursor(pymysql.cursors.DictCursor)
+```
+
+
+----------------------------------------
+十七、练习题
+----------------------------------------
+
+【基础练习】
+1. 创建一个DatabaseManager类
+2. 实现connect()和close()方法
+3. 实现insert_student()方法
+4. 实现query_by_id()方法
+5. 实现update_student()方法
+6. 实现delete_student()方法
+
+【进阶练习】
+7. 实现分页查询方法
+8. 实现批量插入方法
+9. 实现事务处理方法（如转账）
+10. 实现统计报表方法
+
+【高级练习】
+11. 使用连接池优化性能
+12. 实现数据格式化输出
+13. 实现异常处理和日志记录
+14. 创建一个完整的CRUD应用
+15. 实现数据库备份和恢复功能
+
+
+----------------------------------------
+参考案例文件
+----------------------------------------
+
+对应实践文件：
+- Python代码：database_demo.py（完整示例）
+- SQL脚本：03_数据操作.sql（SQL操作示例）
+
+========================================
+讲义结束
+========================================

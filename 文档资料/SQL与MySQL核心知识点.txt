@@ -1,0 +1,99 @@
+========================================
+       SQL 与 MySQL 核心知识点
+========================================
+
+一、SQL（Structured Query Language）简介
+----------------------------------------
+SQL是用于管理和操作关系型数据库的标准语言。
+它包含数据查询、数据操作、数据定义和数据控制四大功能。
+
+二、MySQL 简介
+----------------------------------------
+MySQL是最流行的开源关系型数据库管理系统之一，
+由Oracle公司维护，广泛应用于Web应用程序。
+
+========================================
+       最重要的三个知识点
+========================================
+
+【知识点一：数据查询语言（DQL）- SELECT语句】
+----------------------------------------
+SELECT是SQL中最常用的语句，用于从数据库中检索数据。
+
+核心语法：
+  SELECT 列名 FROM 表名 WHERE 条件;
+
+重要子句：
+  - WHERE：过滤条件
+  - ORDER BY：排序结果
+  - GROUP BY：分组统计
+  - JOIN：多表连接查询
+
+示例：
+  SELECT name, age FROM students WHERE age > 18;
+  SELECT * FROM orders ORDER BY order_date DESC;
+
+【知识点二：数据定义语言（DDL）- 表结构设计】
+----------------------------------------
+DDL用于定义和修改数据库结构，包括创建、修改、删除表。
+
+核心语句：
+  - CREATE TABLE：创建新表
+  - ALTER TABLE：修改表结构
+  - DROP TABLE：删除表
+
+数据类型：
+  - INT：整数
+  - VARCHAR(n)：变长字符串
+  - DECIMAL(m,n)：精确小数
+  - DATETIME：日期时间
+  - BOOLEAN：布尔值
+
+示例：
+  CREATE TABLE users (
+      id INT PRIMARY KEY AUTO_INCREMENT,
+      username VARCHAR(50) NOT NULL,
+      email VARCHAR(100) UNIQUE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+【知识点三：数据操作语言（DML）- CRUD操作】
+----------------------------------------
+DML用于对表中数据进行增删改查操作。
+
+四大操作：
+  - CREATE（插入）：INSERT INTO
+  - READ（查询）：SELECT
+  - UPDATE（更新）：UPDATE
+  - DELETE（删除）：DELETE
+
+示例：
+  -- 插入数据
+  INSERT INTO users (username, email) VALUES ('张三', 'zhangsan@example.com');
+  
+  -- 更新数据
+  UPDATE users SET email = 'newemail@example.com' WHERE id = 1;
+  
+  -- 删除数据
+  DELETE FROM users WHERE id = 1;
+
+========================================
+              补充说明
+========================================
+
+事务管理（ACID特性）：
+  - 原子性（Atomicity）：操作要么全部完成，要么全部不完成
+  - 一致性（Consistency）：数据库始终保持一致状态
+  - 隔离性（Isolation）：并发事务互不干扰
+  - 持久性（Durability）：数据一旦提交永久保存
+
+索引（Index）：
+  提高查询效率的数据结构，类似书籍的目录。
+  创建索引：CREATE INDEX idx_name ON users(username);
+
+外键（Foreign Key）：
+  建立表与表之间的关系，确保数据完整性。
+
+========================================
+文档创建时间：2026年3月19日
+========================================

@@ -1,0 +1,780 @@
+========================================
+       重点讲义三：数据库设计与外键关系
+========================================
+
+创建时间：2026年3月19日
+对应章节：SQL深度详解.md 第二章、SQL脚本02_创建数据表.sql
+
+========================================
+学习目标
+========================================
+
+掌握数据库设计的基本原则，理解关系型数据库的核心概念，学会设计规范的数据表结构，并正确使用外键建立表之间的关系。
+
+----------------------------------------
+一、关系型数据库基本概念
+----------------------------------------
+
+【什么是关系型数据库】
+关系型数据库（RDBMS）是基于关系模型的数据库，数据以表的形式存储，表与表之间通过关系（外键）连接。
+
+【核心概念】
+
+1. 表（Table）
+   - 数据库中数据的组织形式
+   - 类似Excel表格
+   - 由行（记录）和列（字段）组成
+
+2. 主键（Primary Key）
+   - 唯一标识表中的每一行记录
+   - 不能重复，不能为空
+   - 常用：自增整数、UUID
+
+3. 外键（Foreign Key）
+   - 建立表与表之间的关联
+   - 指向另一个表的主键
+   - 保证数据完整性
+
+4. 索引（Index）
+   - 提高查询效率的数据结构
+   - 类似书籍的目录
+
+【表之间的关系类型】
+
+1. 一对一（1:1）
+   - 示例：学生 → 学生详情
+   - 实现：在任一表中添加外键，并设置为UNIQUE
+
+2. 一对多（1:N）
+   - 示例：班级 → 学生
+   - 实现：在多的一端添加外键
+
+3. 多对多（M:N）
+   - 示例：学生 → 课程
+   - 实现：创建中间表（关联表）
+
+
+----------------------------------------
+二、数据库设计原则
+----------------------------------------
+
+【1. 第一范式（1NF）- 原子性】
+每个字段都是不可分割的最小数据单位。
+
+❌ 违反示例：
+```sql
+CREATE TABLE bad_table (
+    id INT,
+    name VARCHAR(50),
+    contact VARCHAR(100)  -- 包含电话和邮箱，不满足1NF
+);
+```
+
+✅ 正确示例：
+```sql
+CREATE TABLE good_table (
+    id INT,
+    name VARCHAR(50),
+    phone VARCHAR(20),
+    email VARCHAR(100)
+);
+```
+
+【2. 第二范式（2NF）- 完全依赖】
+非主键字段必须完全依赖于主键。
+
+❌ 违反示例：
+```sql
+CREATE TABLE bad_table (
+    id INT PRIMARY KEY,
+    student_id INT,
+    course_id INT,
+    student_name VARCHAR(50),  -- 依赖于student_id，不完全依赖于联合主键
+    score DECIMAL(5,2)
+);
+```
+
+✅ 正确示例：
+```sql
+-- 学生表
+CREATE TABLE students (
+    id INT PRIMARY KEY,
+    name VARCHAR(50)
+);
+
+-- 成绩表
+CREATE TABLE scores (
+    student_id INT,
+    course_id INT,
+    score DECIMAL(5,2),
+    PRIMARY KEY (student_id, course_id)
+);
+```
+
+【3. 第三范式（3NF）- 传递依赖】
+非主键字段不能依赖于其他非主键字段。
+
+❌ 违反示例：
+```sql
+CREATE TABLE bad_table (
+    id INT PRIMARY KEY,
+    class_id INT,
+    class_name VARCHAR(50),  -- 依赖于class_id，传递依赖
+    student_name VARCHAR(50)
+);
+```
+
+✅ 正确示例：
+```sql
+-- 班级表
+CREATE TABLE classes (
+    id INT PRIMARY KEY,
+    name VARCHAR(50)
+);
+
+-- 学生表
+CREATE TABLE students (
+    id INT PRIMARY KEY,
+    class_id INT,
+    name VARCHAR(50),
+    FOREIGN KEY (class_id) REFERENCES classes(id)
+);
+```
+
+【设计最佳实践】
+✅ 每个表都应该有主键
+✅ 外键应该有合适的索引
+✅ 使用合适的数据类型
+✅ 字段命名清晰、有意义
+✅ 添加必要的注释（COMMENT）
+✅ 考虑数据的安全性和完整性
+
+
+----------------------------------------
+三、本案例的数据库设计
+----------------------------------------
+
+【整体架构】
+```
+school_db（学校数据库）
+│
+├── classes（班级表）
+│   └── 1 ────┐
+│             ↓
+├── students（学生表）
+│   └── 1 ────┐
+│             ↓
+├── scores（成绩表）
+│             ↑
+│             N
+└── courses（课程表）
+```
+
+【关系说明】
+- classes → students：一对多（一个班级有多个学生）
+- students → scores：一对多（一个学生有多门课程成绩）
+- courses → scores：一对多（一门课程有多个学生成绩）
+- students × courses：多对多（通过scores中间表实现）
+
+----------------------------------------
+四、班级表（classes）设计
+----------------------------------------
+
+【表结构】
+```sql
+CREATE TABLE IF NOT EXISTS classes (
+    -- 主键：班级ID，自增
+    id INT PRIMARY KEY AUTO_INCREMENT COMMENT '班级ID，主键自增',
+    
+    -- 字段：班级名称
+    name VARCHAR(50) NOT NULL COMMENT '班级名称',
+    
+    -- 字段：班主任姓名
+    teacher VARCHAR(50) COMMENT '班主任姓名',
+    
+    -- 字段：教室位置
+    room VARCHAR(30) COMMENT '教室位置',
+    
+    -- 字段：创建时间
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
+    
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='班级信息表';
+```
+
+【设计要点】
+✅ 使用AUTO_INCREMENT自增主键
+✅ name字段设置为NOT NULL，不能为空
+✅ 使用COMMENT添加字段说明
+✅ 设置utf8mb4字符集，支持中文
+✅ 使用InnoDB引擎，支持事务和外键
+
+【字段说明】
+- id：主键，唯一标识每个班级
+- name：班级名称，如"一年级一班"
+- teacher：班主任姓名，如"王老师"
+- room：教室位置，如"101教室"
+- created_at：记录创建时间，便于追踪
+
+
+----------------------------------------
+五、学生表（students）设计
+----------------------------------------
+
+【表结构】
+```sql
+CREATE TABLE IF NOT EXISTS students (
+    -- 主键：学生ID，自增
+    id INT PRIMARY KEY AUTO_INCREMENT COMMENT '学生ID，主键自增',
+    
+    -- 字段：学生姓名
+    name VARCHAR(50) NOT NULL COMMENT '学生姓名',
+    
+    -- 字段：年龄
+    age INT COMMENT '年龄',
+    
+    -- 字段：性别
+    gender VARCHAR(10) COMMENT '性别',
+    
+    -- 字段：班级ID（外键）
+    class_id INT COMMENT '班级ID，外键',
+    
+    -- 字段：联系电话
+    phone VARCHAR(20) COMMENT '联系电话',
+    
+    -- 字段：电子邮箱
+    email VARCHAR(100) COMMENT '电子邮箱',
+    
+    -- 字段：创建时间
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    
+    -- 字段：更新时间（自动更新）
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP 
+                    ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    
+    -- 外键约束：关联班级表
+    CONSTRAINT fk_student_class 
+        FOREIGN KEY (class_id) 
+        REFERENCES classes(id) 
+        ON DELETE SET NULL 
+        ON UPDATE CASCADE,
+    
+    -- 索引：姓名索引
+    INDEX idx_name (name),
+    
+    -- 索引：班级ID索引
+    INDEX idx_class_id (class_id)
+    
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='学生信息表';
+```
+
+【外键约束详解】
+```sql
+CONSTRAINT fk_student_class  -- 约束名称
+    FOREIGN KEY (class_id)   -- 外键列
+    REFERENCES classes(id)   -- 引用表和主键列
+    ON DELETE SET NULL       -- 删除行为：级联设为NULL
+    ON UPDATE CASCADE;       -- 更新行为：级联更新
+```
+
+【外键行为说明】
+- ON DELETE SET NULL：
+  - 当班级被删除时，该班级学生的class_id设为NULL
+  - 避免级联删除学生数据
+  - 适用于学生可以独立存在的场景
+
+- ON UPDATE CASCADE：
+  - 当班级ID更新时，自动更新所有关联学生的class_id
+  - 保持数据一致性
+
+【索引说明】
+```sql
+-- 为name字段创建索引
+INDEX idx_name (name);
+-- 提高按姓名查询的速度
+
+-- 为class_id字段创建索引
+INDEX idx_class_id (class_id);
+-- 提高按班级查询和连接操作的速度
+```
+
+【字段说明】
+- id：主键，唯一标识每个学生
+- name：学生姓名，如"张三"
+- age：年龄，如18
+- gender：性别，如"男"、"女"
+- class_id：外键，关联班级表的id
+- phone：联系电话，如"13800138001"
+- email：电子邮箱，如"zhangsan@example.com"
+- created_at：记录创建时间
+- updated_at：自动更新时间，记录最后修改时间
+
+
+----------------------------------------
+六、课程表（courses）设计
+----------------------------------------
+
+【表结构】
+```sql
+CREATE TABLE IF NOT EXISTS courses (
+    -- 主键：课程ID，自增
+    id INT PRIMARY KEY AUTO_INCREMENT COMMENT '课程ID',
+    
+    -- 字段：课程名称
+    name VARCHAR(100) NOT NULL COMMENT '课程名称',
+    
+    -- 字段：学分
+    credit DECIMAL(3,1) COMMENT '学分',
+    
+    -- 字段：授课教师
+    teacher VARCHAR(50) COMMENT '授课教师',
+    
+    -- 字段：课程描述
+    description TEXT COMMENT '课程描述'
+    
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='课程信息表';
+```
+
+【数据类型选择】
+- DECIMAL(3,1)：表示3位数字，其中1位小数
+  - 范围：-99.9 到 99.9
+  - 适用于存储精确的小数（如学分）
+
+【字段说明】
+- id：主键，唯一标识每门课程
+- name：课程名称，如"数学"、"英语"
+- credit：学分，如4.0、3.5
+- teacher：授课教师，如"陈老师"
+- description：课程描述，存储较长的文本
+
+
+----------------------------------------
+七、成绩表（scores）设计
+----------------------------------------
+
+【表结构】
+```sql
+CREATE TABLE IF NOT EXISTS scores (
+    -- 主键：成绩ID，自增
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    
+    -- 字段：学生ID（外键）
+    student_id INT NOT NULL COMMENT '学生ID',
+    
+    -- 字段：课程ID（外键）
+    course_id INT NOT NULL COMMENT '课程ID',
+    
+    -- 字段：成绩
+    score DECIMAL(5,2) COMMENT '成绩',
+    
+    -- 字段：考试日期
+    exam_date DATE COMMENT '考试日期',
+    
+    -- 外键约束：关联学生表
+    CONSTRAINT fk_score_student 
+        FOREIGN KEY (student_id) 
+        REFERENCES students(id) 
+        ON DELETE CASCADE,
+    
+    -- 外键约束：关联课程表
+    CONSTRAINT fk_score_course 
+        FOREIGN KEY (course_id) 
+        REFERENCES courses(id) 
+        ON DELETE CASCADE,
+    
+    -- 联合唯一索引：一个学生一门课程只有一个成绩
+    UNIQUE KEY uk_student_course (student_id, course_id)
+    
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='学生成绩表';
+```
+
+【联合唯一索引详解】
+```sql
+UNIQUE KEY uk_student_course (student_id, course_id)
+```
+作用：确保同一个学生对同一门课程只能有一条成绩记录
+
+【外键行为说明】
+- ON DELETE CASCADE：
+  - 当学生被删除时，自动删除该学生的所有成绩
+  - 当课程被删除时，自动删除该课程的所有成绩
+  - 保持数据一致性，避免出现孤岛数据
+
+【数据类型选择】
+- DECIMAL(5,2)：表示5位数字，其中2位小数
+  - 范围：-999.99 到 999.99
+  - 适用于存储成绩（精确到小数点后2位）
+
+【字段说明】
+- id：主键
+- student_id：外键，关联学生表
+- course_id：外键，关联课程表
+- score：成绩，如85.50、90.00
+- exam_date：考试日期，如'2026-01-15'
+
+
+----------------------------------------
+八、外键约束详解
+----------------------------------------
+
+【外键约束的类型】
+
+1. ON DELETE CASCADE（级联删除）
+   - 当主表记录被删除时，自动删除从表中相关记录
+   - 示例：
+     ```sql
+     -- 删除学生ID为1的学生
+     DELETE FROM students WHERE id = 1;
+     -- 自动删除该学生的所有成绩
+     ```
+
+2. ON DELETE SET NULL（设为NULL）
+   - 当主表记录被删除时，将从表外键设为NULL
+   - 要求外键字段允许NULL
+   - 示例：
+     ```sql
+     -- 删除班级ID为1的班级
+     DELETE FROM classes WHERE id = 1;
+     -- 该班级学生的class_id设为NULL
+     ```
+
+3. ON DELETE RESTRICT（限制删除）
+   - 阻止删除主表记录（如果从表有关联记录）
+   - 这是MySQL的默认行为
+   - 示例：
+     ```sql
+     -- 尝试删除有学生的班级
+     DELETE FROM classes WHERE id = 1;
+     -- 错误：Cannot delete or update a parent row
+     ```
+
+4. ON DELETE NO ACTION（不操作）
+   - 类似RESTRICT，阻止删除
+   - SQL标准语法
+
+【ON UPDATE行为】
+- ON UPDATE CASCADE：级联更新
+- ON UPDATE SET NULL：设为NULL
+- ON UPDATE RESTRICT：限制更新（默认）
+- ON UPDATE NO ACTION：不操作
+
+【创建外键的时机】
+```sql
+-- 方式1：创建表时定义外键（推荐）
+CREATE TABLE students (
+    id INT PRIMARY KEY,
+    class_id INT,
+    FOREIGN KEY (class_id) REFERENCES classes(id)
+);
+
+-- 方式2：表创建后添加外键
+ALTER TABLE students
+ADD CONSTRAINT fk_student_class
+FOREIGN KEY (class_id) REFERENCES classes(id);
+```
+
+【删除外键】
+```sql
+-- 删除外键约束
+ALTER TABLE students DROP FOREIGN KEY fk_student_class;
+```
+
+【查看外键】
+```sql
+-- 查看表的外键信息
+SELECT 
+    CONSTRAINT_NAME,
+    TABLE_NAME,
+    COLUMN_NAME,
+    REFERENCED_TABLE_NAME,
+    REFERENCED_COLUMN_NAME
+FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+WHERE TABLE_NAME = 'students'
+AND REFERENCED_TABLE_NAME IS NOT NULL;
+```
+
+
+----------------------------------------
+九、索引设计
+----------------------------------------
+
+【索引的作用】
+提高查询速度，类似书籍的目录。
+
+【索引类型】
+
+1. 普通索引（INDEX）
+   ```sql
+   CREATE INDEX idx_name ON students(name);
+   ```
+
+2. 唯一索引（UNIQUE）
+   ```sql
+   CREATE UNIQUE INDEX idx_email ON users(email);
+   ```
+
+3. 主键索引（PRIMARY KEY）
+   ```sql
+   id INT PRIMARY KEY AUTO_INCREMENT
+   ```
+
+4. 全文索引（FULLTEXT）
+   ```sql
+   CREATE FULLTEXT INDEX idx_content ON articles(content);
+   ```
+
+5. 联合索引（Composite Index）
+   ```sql
+   CREATE INDEX idx_composite ON orders(user_id, order_date);
+   ```
+
+【何时创建索引】
+✅ 经常作为查询条件的字段
+✅ 经常作为连接条件的字段
+✅ 经常排序的字段
+✅ 唯一性约束的字段
+
+【何时不创建索引】
+❌ 频繁更新的字段
+❌ 数据量很小的表
+❌ 数据重复度很高的字段（如性别）
+
+【索引的代价】
+- 占用额外的存储空间
+- 降低写入速度（INSERT/UPDATE/DELETE）
+- 需要维护索引结构
+
+【本案例的索引设计】
+```sql
+-- students表
+INDEX idx_name (name),          -- 姓名索引
+INDEX idx_class_id (class_id),  -- 班级ID索引（外键）
+
+-- scores表
+UNIQUE KEY uk_student_course (student_id, course_id)  -- 联合唯一索引
+```
+
+【索引最佳实践】
+1. 外键字段自动创建索引（MySQL会自动为外键创建索引）
+2. 经常查询的字段创建索引
+3. 联合索引遵循最左前缀原则
+4. 避免过度索引（3-5个为宜）
+5. 定期使用EXPLAIN分析查询
+
+
+----------------------------------------
+十、数据类型选择指南
+----------------------------------------
+
+【数值类型】
+```sql
+-- 根据数据范围选择合适的类型
+
+TINYINT   -- 1字节，范围：-128~127（小整数）
+SMALLINT  -- 2字节，范围：-32768~32767
+INT       -- 4字节，范围：约±21亿（标准整数）
+BIGINT    -- 8字节，极大范围（大整数）
+FLOAT     -- 4字节，单精度浮点（近似值）
+DOUBLE    -- 8字节，双精度浮点（近似值）
+DECIMAL   -- 精确小数（金额、成绩等）
+
+-- 示例
+age INT                          -- 年龄
+price DECIMAL(10,2)              -- 价格：99999999.99
+score DECIMAL(5,2)               -- 成绩：999.99
+```
+
+【字符串类型】
+```sql
+-- 根据数据特点选择
+
+CHAR(n)       -- 定长字符串，最大255字符
+              -- 适合固定长度：手机号、身份证号
+              -- 优点：查询快
+              -- 缺点：占用固定空间
+
+VARCHAR(n)    -- 变长字符串，最大65535字节
+              -- 适合可变长度：姓名、地址
+              -- 优点：节省空间
+              -- 缺点：查询稍慢
+
+TEXT          -- 长文本，最大65535字符
+MEDIUMTEXT    -- 中等文本，最大16MB
+LONGTEXT      -- 超长文本，最大4GB
+
+-- 示例
+phone CHAR(11)                  -- 手机号（固定11位）
+name VARCHAR(50)                -- 姓名（可变长度）
+content TEXT                    -- 文章内容
+```
+
+【日期时间类型】
+```sql
+DATE        -- 日期：YYYY-MM-DD，范围：1000-01-01 ~ 9999-12-31
+TIME        -- 时间：HH:MM:SS，范围：-838:59:59 ~ 838:59:59
+DATETIME    -- 日期时间：YYYY-MM-DD HH:MM:SS
+TIMESTAMP   -- 时间戳：自动记录创建/更新时间，范围：1970-01-01 ~ 2038-01-19
+YEAR        -- 年份：YYYY，范围：1901 ~ 2155
+
+-- 示例
+birth_date DATE                 -- 出生日期
+exam_date DATE                  -- 考试日期
+created_at DATETIME             -- 创建时间
+updated_at TIMESTAMP            -- 更新时间（自动更新）
+```
+
+【布尔类型】
+```sql
+-- MySQL没有专门的布尔类型，使用TINYINT(1)
+is_active TINYINT(1)            -- 0或1，表示是否激活
+is_deleted TINYINT(1)           -- 0或1，表示是否删除
+```
+
+【枚举类型】（ENUM）
+```sql
+-- 适合固定选项的字段
+gender ENUM('男', '女')         -- 性别
+status ENUM('active', 'inactive', 'deleted')  -- 状态
+
+-- 注意：ENUM的缺点是不够灵活，不建议大量使用
+```
+
+
+----------------------------------------
+十一、数据库设计实战
+----------------------------------------
+
+【设计流程】
+
+1. 需求分析
+   - 明确系统需要存储哪些数据
+   - 确定数据之间的关系
+
+2. 概念设计（ER图）
+   - 识别实体（表）
+   - 确定属性（字段）
+   - 定义关系（一对一、一对多、多对多）
+
+3. 逻辑设计
+   - 设计表结构
+   - 定义主键和外键
+   - 确定数据类型
+   - 添加约束
+
+4. 物理设计
+   - 创建索引
+   - 选择存储引擎
+   - 设置字符集
+
+【设计案例：图书管理系统】
+
+实体：
+- users（用户表）
+- books（图书表）
+- categories（分类表）
+- borrows（借阅记录表）
+
+关系：
+- categories → books：一对多（一个分类有多本书）
+- users → borrows：一对多（一个用户有多条借阅记录）
+- books → borrows：一对多（一本书有多条借阅记录）
+- users × books：多对多（通过borrows中间表实现）
+
+表设计：
+```sql
+-- 分类表
+CREATE TABLE categories (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(50) NOT NULL,
+    description TEXT
+);
+
+-- 图书表
+CREATE TABLE books (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    title VARCHAR(100) NOT NULL,
+    author VARCHAR(50),
+    isbn VARCHAR(20),
+    category_id INT,
+    publish_date DATE,
+    price DECIMAL(10,2),
+    stock INT DEFAULT 0,
+    FOREIGN KEY (category_id) REFERENCES categories(id),
+    INDEX idx_title (title),
+    INDEX idx_isbn (isbn)
+);
+
+-- 用户表
+CREATE TABLE users (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    name VARCHAR(50),
+    phone VARCHAR(20),
+    email VARCHAR(100),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 借阅记录表
+CREATE TABLE borrows (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    book_id INT NOT NULL,
+    borrow_date DATE NOT NULL,
+    return_date DATE,
+    status ENUM('borrowed', 'returned', 'overdue'),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (book_id) REFERENCES books(id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_book_id (book_id)
+);
+```
+
+
+----------------------------------------
+十二、练习题
+----------------------------------------
+
+【基础练习】
+1. 设计一个"订单表"，包含以下字段：
+   - 订单ID（主键）
+   - 用户ID（外键）
+   - 订单日期
+   - 订单总金额
+   - 订单状态
+
+2. 设计一个"订单详情表"，记录每个订单包含的商品
+
+3. 为订单表创建合适的索引
+
+【进阶练习】
+4. 设计一个"博客系统"数据库
+   - 用户表（users）
+   - 文章表（posts）
+   - 评论表（comments）
+   - 分类表（categories）
+
+5. 定义表之间的外键关系
+6. 为常用查询字段创建索引
+
+【高级练习】
+7. 设计一个"电商系统"数据库
+   - 至少包含10个表
+   - 考虑各种关系类型
+   - 设计合理的索引
+   - 添加必要的约束
+
+8. 分析现有设计的优缺点
+9. 提出优化建议
+
+
+----------------------------------------
+参考案例文件
+----------------------------------------
+
+对应实践文件：
+- SQL脚本：02_创建数据表.sql（完整表设计示例）
+- 文档：SQL深度详解.md（数据类型详解）
+
+========================================
+讲义结束
+========================================
